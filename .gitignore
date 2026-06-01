@@ -1,0 +1,32 @@
+# ── SECRETS — never commit ──
+.env
+.env.*
+*.key
+
+# ── Generated caches (rebuilt by the scripts) ──
+# umap_xy.npy, knn.npy, cache/*_emb.npy, etc.
+cache/
+*.npy
+
+# ── Generated visualizations (large, regenerable) ──
+# atlas_*.html, compare*.html, umap_groups.html, vectors.tsv (92MB), *.png
+*.html
+*.tsv
+*.png
+
+# ── Logs ──
+*.log
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+venv/
+.venv/
+
+# ── editor / OS / Claude ──
+.claude
+.DS_Store
+.vscode/
+.idea/
