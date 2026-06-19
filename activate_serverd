@@ -1,0 +1,8 @@
+curl -i http://localhost:8090/
+
+lsof -i :8090
+
+source .venv/bin/activate
+
+
+source .venv/bin/activate && python scripts/context_server.py

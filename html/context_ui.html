@@ -1,0 +1,4231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qwen2.5 Context Explorer & QA Dashboard</title>
+  <meta name="description" content="Explore and test Qwen2.5-0.5B context window and QA capabilities with real-time token tracking.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Load Plotly library from the local server -->
+  <script src="/plotly.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --panel-bg: rgba(17, 24, 39, 0.7);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-blue: #3b82f6;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.15) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      backdrop-filter: blur(12px);
+      background: rgba(11, 15, 25, 0.8);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 1.25rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      width: 2rem;
+      height: 2rem;
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      background: linear-gradient(to right, #ffffff, #e2e8f0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      border-radius: 9999px;
+      color: var(--accent-emerald);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 0.35rem 0.85rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-emerald);
+      animation: pulse 2s infinite;
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 2rem;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .left-column {
+      overflow-y: auto;
+      height: 100%;
+      min-height: 0;
+      padding-right: 0.5rem; /* brief buffer to prevent text overlapping scrollbar */
+    }
+
+    .right-column {
+      overflow-y: auto;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      padding-right: 0.5rem;
+    }
+
+    /* Premium custom scrollbars */
+    .left-column::-webkit-scrollbar,
+    .right-column::-webkit-scrollbar {
+      width: 6px;
+    }
+    .left-column::-webkit-scrollbar-track,
+    .right-column::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .left-column::-webkit-scrollbar-thumb,
+    .right-column::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+    }
+    .left-column::-webkit-scrollbar-thumb:hover,
+    .right-column::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    /* ============================================================
+       INFERENCE HISTORY SECTION
+       ============================================================ */
+    .history-container {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+    
+    .history-container:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(99, 102, 241, 0.15);
+    }
+    
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .history-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #a5b4fc;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .history-icon {
+      font-size: 0.95rem;
+    }
+    
+    .history-arrow {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform 0.3s ease;
+    }
+    
+    .history-arrow.open {
+      transform: rotate(180deg);
+    }
+    
+    .history-list {
+      margin-top: 0.75rem;
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding-right: 0.25rem;
+    }
+    
+    /* Custom scrollbar for history list */
+    .history-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .history-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .history-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+    }
+    
+    .history-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    
+    .history-item:hover {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+    
+    .history-item.active {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.5);
+    }
+    
+    .history-item-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .history-item-question {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .history-item-meta {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    
+    .history-item-delete {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0.25rem;
+      border-radius: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    .history-item-delete:hover {
+      color: var(--accent-rose);
+      background: rgba(244, 63, 94, 0.15);
+    }
+    
+    .history-clear-btn {
+      font-size: 0.68rem;
+      background: transparent;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--accent-rose);
+      padding: 0.2rem 0.5rem;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      align-self: flex-end;
+      margin-top: 0.25rem;
+    }
+    
+    .history-clear-btn:hover {
+      background: rgba(244, 63, 94, 0.15);
+      border-color: var(--accent-rose);
+    }
+
+    .history-empty {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 0.5rem 0;
+      font-style: italic;
+    }
+
+    @media (max-width: 1200px) {
+      body {
+        height: auto;
+        overflow: auto;
+      }
+      main {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+        padding: 1rem;
+      }
+      .left-column,
+      .right-column {
+        height: auto;
+        overflow-y: visible;
+        padding-right: 0;
+      }
+    }
+
+    .card {
+      backdrop-filter: blur(16px);
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      transition: border-color 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(99, 102, 241, 0.25);
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      border-left: 3px solid var(--accent-indigo);
+      padding-left: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    textarea, input[type="text"] {
+      background: rgba(17, 24, 39, 0.8);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.5rem;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      padding: 0.75rem;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+
+    textarea:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      background: rgba(17, 24, 39, 0.95);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    #context-input {
+      min-height: 220px;
+    }
+
+    .upload-container {
+      border: 2px dashed var(--panel-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.01);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .upload-container:hover, .upload-container.dragover {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.03);
+    }
+
+    .upload-icon {
+      font-size: 2rem;
+      color: var(--accent-cyan);
+    }
+
+    .upload-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .upload-text span {
+      color: var(--accent-cyan);
+      font-weight: 500;
+    }
+
+    #file-input {
+      display: none;
+    }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .range-slider {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+    }
+
+    .slider-value {
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent-indigo);
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+      transition: transform 0.1s ease;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      border: none;
+      border-radius: 0.5rem;
+      color: white;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+    }
+
+    .btn:disabled {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Tabs Layout */
+    .tabs-nav {
+      display: flex;
+      border-bottom: 1px solid var(--panel-border);
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      font-weight: 500;
+      padding: 0.75rem 0.25rem;
+      position: relative;
+      transition: color 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background-color: var(--accent-cyan);
+      border-radius: 2px;
+    }
+
+    .tab-pane {
+      display: none;
+      flex-direction: column;
+      gap: 1.25rem;
+      flex: 1;
+    }
+
+    .tab-pane.active {
+      display: flex;
+    }
+
+    /* Token Window Progress Gauge */
+    .token-meter-container {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .meter-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .meter-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .meter-percentage {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--accent-cyan);
+    }
+
+    .progress-bar-outer {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 9999px;
+      height: 10px;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .progress-bar-inner {
+      background: linear-gradient(to right, var(--accent-cyan), var(--accent-indigo));
+      border-radius: 9999px;
+      height: 100%;
+      width: 0%;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .progress-bar-inner.warning {
+      background: #eab308;
+    }
+
+    .progress-bar-inner.danger {
+      background: var(--accent-rose);
+    }
+
+    .token-details-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .token-item {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .token-item-label {
+      color: var(--text-muted);
+    }
+
+    .token-item-val {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .token-item-val.warning {
+      color: #eab308;
+    }
+
+    .token-item-val.danger {
+      color: var(--accent-rose);
+    }
+
+    /* Output Area */
+    .output-box {
+      background: rgba(9, 12, 20, 0.9);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.75rem;
+      min-height: 280px;
+      padding: 1.25rem;
+      position: relative;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+
+    .output-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(to right, var(--accent-indigo), var(--accent-cyan));
+      border-radius: 0.75rem 0.75rem 0 0;
+    }
+
+    .output-placeholder {
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      font-style: italic;
+    }
+
+    .output-content {
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: #e2e8f0;
+      display: none;
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .metric-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .metric-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+    }
+
+    /* Visualizations Tabs Content */
+    .viz-placeholder {
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-style: italic;
+      height: 350px;
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px dashed var(--panel-border);
+      border-radius: 0.75rem;
+    }
+
+    #plotly-chart {
+      width: 100%;
+      height: 420px;
+      border-radius: 0.75rem;
+      background: rgba(9, 12, 20, 0.5);
+      border: 1px solid var(--panel-border);
+    }
+
+    .heatmap-box {
+      background: rgba(9, 12, 20, 0.9);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      line-height: 1.8;
+      max-height: 420px;
+      overflow-y: auto;
+      font-size: 1.05rem;
+      color: #e2e8f0;
+    }
+
+    .heatmap-sentence {
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      cursor: help;
+      display: inline;
+    }
+
+    .heatmap-legend {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--panel-border);
+    }
+
+    .legend-bar {
+      height: 10px;
+      width: 120px;
+      border-radius: 5px;
+      background: linear-gradient(to right, rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.7));
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Animations */
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.6; }
+    }
+
+    .spinner {
+      animation: rotate 1s linear infinite;
+      border: 2.5px solid rgba(255, 255, 255, 0.15);
+      border-radius: 50%;
+      border-top-color: white;
+      height: 18px;
+      width: 18px;
+    }
+
+    @keyframes rotate {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Token streaming animations */
+    @keyframes tokenPop {
+      0%   { background: rgba(99,102,241,0.5); border-radius: 3px; }
+      100% { background: transparent; border-radius: 0; }
+    }
+    .token-stream-span {
+      animation: tokenPop 0.45s ease-out forwards;
+      display: inline;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .typing-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1.1em;
+      background: #6366f1;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 0.8s step-end infinite;
+      border-radius: 1px;
+    }
+    @keyframes tokenChipIn {
+      from { opacity: 0; transform: translateY(4px) scale(0.9); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .token-chip {
+      display: inline-block;
+      animation: tokenChipIn 0.2s ease-out both;
+      border-radius: 4px;
+      padding: 0.15rem 0.4rem;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      white-space: pre;
+      cursor: default;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .token-chip:hover {
+      transform: translateY(-2px) scale(1.05);
+      z-index: 1;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    /* Search highlight styling */
+    .search-match {
+      background-color: #facc15; /* solid bright yellow for all matches */
+      color: #000000;
+      border-radius: 2px;
+      padding: 0 2px;
+      font-weight: 500;
+      transition: background-color 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+    }
+    
+    .search-match.active {
+      background-color: #ea580c !important; /* solid bright orange for active match */
+      color: #ffffff !important;
+      font-weight: bold;
+      box-shadow: 0 0 10px #ea580c;
+    }
+
+    /* Execution Trace Log Panel */
+    .trace-card {
+      background: rgba(9, 12, 20, 0.95);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #34d399; /* emerald-400 */
+      max-height: 220px;
+      overflow-y: auto;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.8);
+    }
+    
+    .trace-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .trace-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      line-height: 1.5;
+      opacity: 0;
+      transform: translateY(4px);
+      animation: fadeInUp 0.3s ease forwards;
+    }
+
+    .trace-line.info { color: #9ca3af; }
+    .trace-line.success { color: #34d399; }
+    .trace-line.warning { color: #fbbf24; }
+    .trace-line.hardware { color: #c084fc; } /* purple for device */
+
+    @keyframes fadeInUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Source highlight card */
+    .source-card {
+      background: rgba(59, 130, 246, 0.05);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-left: 4px solid var(--accent-blue);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+      animation: fadeInUp 0.4s ease forwards;
+      margin-top: 1rem;
+    }
+
+    .source-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .source-card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: #60a5fa;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .source-card-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-blue);
+      border-radius: 50%;
+      box-shadow: 0 0 8px #60a5fa;
+    }
+
+    .source-card-link {
+      background: none;
+      border: none;
+      color: #60a5fa;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+      transition: color 0.2s ease;
+    }
+
+    .source-card-link:hover {
+      color: #93c5fd;
+    }
+
+    .source-card-text {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+      font-style: italic;
+      margin-top: 0.25rem;
+    }
+    /* ====== GENERATION CINEMA ====== */
+    .cinema-panel {
+      background: rgba(5, 8, 18, 0.95);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+
+    .cinema-header {
+      background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.08));
+      border-bottom: 1px solid rgba(99,102,241,0.2);
+      padding: 0.75rem 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cinema-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #a78bfa;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Source sentence display */
+    .cinema-source {
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .cinema-source-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #f59e0b;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .cinema-source-text {
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #fde68a;
+      background: rgba(234,179,8,0.06);
+      border: 1px solid rgba(234,179,8,0.2);
+      border-left: 3px solid #f59e0b;
+      border-radius: 0.4rem;
+      padding: 0.6rem 0.8rem;
+      font-style: italic;
+    }
+
+    /* Arrow connector */
+    .cinema-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1.1rem;
+      font-size: 0.68rem;
+      color: #4b5563;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .cinema-arrow-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(99,102,241,0.4), transparent);
+    }
+
+    /* Token generation display area */
+    .cinema-tokens-area {
+      padding: 0.75rem 1.1rem 0.5rem;
+      min-height: 80px;
+    }
+
+    .cinema-tokens-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      align-items: flex-end;
+      min-height: 64px;
+    }
+
+    /* Individual token cell */
+    .cinema-token-cell {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.15rem;
+      position: relative;
+      border-radius: 5px;
+      overflow: visible;
+      transition: all 0.2s ease;
+    }
+
+    .cinema-token-cell.active-token {
+      transform: translateY(-3px);
+      z-index: 10;
+    }
+
+    .cinema-token-cell.dimmed {
+      opacity: 0.35;
+    }
+
+    .cinema-token-text {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      white-space: pre;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    /* Confidence bar below each token */
+    .cinema-conf-bar {
+      width: 100%;
+      height: 3px;
+      border-radius: 2px;
+      min-width: 24px;
+      transition: all 0.3s ease;
+    }
+
+    /* Token index number */
+    .cinema-token-idx {
+      font-size: 0.5rem;
+      color: #4b5563;
+      font-family: var(--font-mono);
+    }
+
+    /* Highlighted active glow ring */
+    .cinema-token-cell.active-token .cinema-token-text {
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.6), 0 0 12px rgba(99,102,241,0.3);
+    }
+
+    /* Confidence color classes */
+    .conf-high  { background: rgba(16,185,129,0.25); border-color: rgba(16,185,129,0.5) !important; color: #6ee7b7; }
+    .conf-high  .cinema-conf-bar { background: #10b981; }
+    .conf-mid   { background: rgba(234,179,8,0.2);   border-color: rgba(234,179,8,0.5)  !important; color: #fde68a; }
+    .conf-mid   .cinema-conf-bar { background: #eab308; }
+    .conf-low   { background: rgba(239,68,68,0.2);   border-color: rgba(239,68,68,0.4)  !important; color: #fca5a5; }
+    .conf-low   .cinema-conf-bar { background: #ef4444; }
+
+    /* New token pop-in animation */
+    @keyframes cinemaPop {
+      0%   { opacity: 0; transform: translateY(8px) scale(0.85); }
+      60%  { transform: translateY(-2px) scale(1.05); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .cinema-token-cell.popping {
+      animation: cinemaPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* ============================================================
+       PRE-SELECTION PIPELINE VISUALIZATION
+       ============================================================ */
+    .pipeline-panel {
+      margin: 0 1.1rem 0.75rem;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(99,102,241,0.18);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+
+    .pipeline-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 0.85rem 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      background: rgba(99,102,241,0.06);
+    }
+
+    .pipeline-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #a5b4fc;
+    }
+
+    .pipeline-token-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: #e2e8f0;
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.4);
+      border-radius: 0.3rem;
+      padding: 0.1rem 0.4rem;
+      margin-left: auto;
+    }
+
+    .pipeline-stages {
+      display: flex;
+      align-items: stretch;
+      padding: 0.85rem;
+      gap: 0;
+      overflow-x: auto;
+    }
+
+    /* Custom scrollbar for pipeline stages */
+    .pipeline-stages::-webkit-scrollbar { height: 4px; }
+    .pipeline-stages::-webkit-scrollbar-track { background: transparent; }
+    .pipeline-stages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
+
+    .pipe-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+      min-width: 110px;
+      max-width: 130px;
+      animation: pipeStageIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+
+    @keyframes pipeStageIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.92); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .pipe-stage-box {
+      width: 100%;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 0.6rem;
+      padding: 0.55rem 0.45rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      position: relative;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .pipe-stage-box:hover {
+      border-color: rgba(99,102,241,0.4);
+      box-shadow: 0 0 12px rgba(99,102,241,0.1);
+    }
+
+    .pipe-stage-icon {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .pipe-stage-name {
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    .pipe-stage-detail {
+      font-size: 0.62rem;
+      color: #6b7280;
+      text-align: center;
+      line-height: 1.35;
+    }
+
+    .pipe-stage-value {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: #e2e8f0;
+      background: rgba(0,0,0,0.3);
+      border-radius: 0.25rem;
+      padding: 0.1rem 0.35rem;
+      text-align: center;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Stage-specific accent colors */
+    .pipe-stage.stage-input .pipe-stage-box  { border-color: rgba(6,182,212,0.2);  }
+    .pipe-stage.stage-input .pipe-stage-name { color: #67e8f9; }
+    .pipe-stage.stage-fwd   .pipe-stage-box  { border-color: rgba(139,92,246,0.2); }
+    .pipe-stage.stage-fwd   .pipe-stage-name { color: #c4b5fd; }
+    .pipe-stage.stage-temp  .pipe-stage-box  { border-color: rgba(251,191,36,0.2); }
+    .pipe-stage.stage-temp  .pipe-stage-name { color: #fde68a; }
+    .pipe-stage.stage-softmax .pipe-stage-box  { border-color: rgba(59,130,246,0.2); }
+    .pipe-stage.stage-softmax .pipe-stage-name { color: #93c5fd; }
+    .pipe-stage.stage-sample .pipe-stage-box  { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.05); }
+    .pipe-stage.stage-sample .pipe-stage-name { color: #6ee7b7; }
+
+    /* Mini bar chart for softmax */
+    .pipe-mini-bars {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 0.1rem;
+    }
+
+    .pipe-mini-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .pipe-mini-bar-label {
+      font-family: var(--font-mono);
+      font-size: 0.52rem;
+      color: #6b7280;
+      min-width: 28px;
+      max-width: 28px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pipe-mini-bar-track {
+      flex: 1;
+      height: 5px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .pipe-mini-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transform-origin: left;
+      animation: barGrowIn 0.5s cubic-bezier(0.4,0,0.2,1) both;
+    }
+
+    @keyframes barGrowIn {
+      from { transform: scaleX(0); }
+      to   { transform: scaleX(1); }
+    }
+
+    .pipe-mini-bar-pct {
+      font-family: var(--font-mono);
+      font-size: 0.5rem;
+      color: #4b5563;
+      min-width: 20px;
+      text-align: right;
+    }
+
+    .pipe-mini-bar-row.chosen .pipe-mini-bar-label { color: #a5b4fc; }
+    .pipe-mini-bar-row.chosen .pipe-mini-bar-fill  { background: #6366f1; }
+    .pipe-mini-bar-row:not(.chosen) .pipe-mini-bar-fill { background: rgba(99,102,241,0.3); }
+    .pipe-mini-bar-row.chosen .pipe-mini-bar-pct   { color: #a5b4fc; }
+
+    /* Arrow connector between stages */
+    .pipe-arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      padding-top: 1.2rem;   /* align with box center approx */
+      flex-shrink: 0;
+    }
+
+    .pipe-arrow-line {
+      width: 18px;
+      height: 2px;
+      background: linear-gradient(to right, rgba(99,102,241,0.3), rgba(99,102,241,0.6));
+      position: relative;
+    }
+
+    .pipe-arrow-line::after {
+      content: '';
+      position: absolute;
+      right: -4px;
+      top: -3px;
+      width: 0;
+      height: 0;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      border-left: 5px solid rgba(99,102,241,0.7);
+    }
+
+    /* Selected token crown badge */
+    .pipe-crown {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.8rem;
+      animation: crownBounce 0.6s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+
+    @keyframes crownBounce {
+      0%   { opacity:0; transform: translateX(-50%) translateY(-8px) scale(0.5); }
+      70%  { transform: translateX(-50%) translateY(2px) scale(1.15); }
+      100% { opacity:1; transform: translateX(-50%) translateY(0) scale(1); }
+    }
+
+    /* Separator between pipeline and alt table */
+    .pipeline-divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(255,255,255,0.06), transparent);
+      margin: 0 0.85rem;
+    }
+
+    /* Alternatives panel */
+    .cinema-alts-panel {
+      margin: 0 1.1rem 0.75rem;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 0.5rem;
+      padding: 0.65rem 0.85rem;
+    }
+
+    .cinema-alts-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      margin-bottom: 0.5rem;
+    }
+
+    .cinema-alts-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .cinema-alt-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .cinema-alt-token {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      min-width: 80px;
+      white-space: pre;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .cinema-alt-bar-wrap {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border-radius: 2px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .cinema-alt-bar {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .cinema-alt-prob {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: #6b7280;
+      min-width: 42px;
+      text-align: right;
+    }
+
+    /* Chosen alt highlight */
+    .cinema-alt-row.chosen .cinema-alt-token { color: #a5b4fc; font-weight: 700; }
+    .cinema-alt-row.chosen .cinema-alt-bar   { background: #6366f1; }
+    .cinema-alt-row:not(.chosen) .cinema-alt-bar { background: rgba(99,102,241,0.25); }
+
+    /* Playback controls */
+    .cinema-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.1rem;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      background: rgba(0,0,0,0.2);
+    }
+
+    .cinema-ctrl-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 0.35rem;
+      color: #9ca3af;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.55rem;
+      transition: all 0.15s ease;
+      line-height: 1;
+    }
+
+    .cinema-ctrl-btn:hover:not(:disabled) {
+      background: rgba(99,102,241,0.2);
+      border-color: rgba(99,102,241,0.5);
+      color: #a5b4fc;
+    }
+
+    .cinema-ctrl-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .cinema-ctrl-btn.active {
+      background: rgba(99,102,241,0.25);
+      border-color: rgba(99,102,241,0.6);
+      color: #a5b4fc;
+    }
+
+    .cinema-position {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: #6b7280;
+      margin-left: auto;
+    }
+
+    .cinema-speed-label {
+      font-size: 0.68rem;
+      color: #6b7280;
+    }
+
+    .cinema-speed-select {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 0.3rem;
+      color: #9ca3af;
+      font-size: 0.72rem;
+      padding: 0.2rem 0.4rem;
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* Placeholder */
+    .cinema-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem 1rem;
+      color: #4b5563;
+      font-size: 0.85rem;
+      font-style: italic;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .cinema-placeholder-icon {
+      font-size: 2rem;
+      opacity: 0.4;
+    }
+
+    /* Streaming live badge */
+    @keyframes liveGlow {
+      0%, 100% { box-shadow: 0 0 4px rgba(239,68,68,0.8); }
+      50% { box-shadow: 0 0 10px rgba(239,68,68,0.5); }
+    }
+    .cinema-live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.4);
+      border-radius: 9999px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #fca5a5;
+      padding: 0.1rem 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .cinema-live-dot {
+      width: 6px;
+      height: 6px;
+      background: #ef4444;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite, liveGlow 1.5s infinite;
+    }
+
+    /* ============================================================
+       AUTOREGRESSIVE GENERATION FLOW PANEL
+       ============================================================ */
+    .flow-panel {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      margin-top: 0;
+    }
+    .flow-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.1rem;
+      border-bottom: 1px solid var(--panel-border);
+      background: rgba(99,102,241,0.06);
+    }
+    .flow-panel-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent-indigo);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .flow-panel-subtitle {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .flow-scroll-wrap {
+      overflow-x: auto;
+      padding: 1rem 1.25rem 1.25rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(99,102,241,0.3) transparent;
+    }
+    .flow-scroll-wrap::-webkit-scrollbar { height: 5px; }
+    .flow-scroll-wrap::-webkit-scrollbar-track { background: transparent; }
+    .flow-scroll-wrap::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 99px; }
+    .flow-legend {
+      display: flex;
+      gap: 1rem;
+      padding: 0 1.25rem 0.75rem;
+      flex-wrap: wrap;
+    }
+    .flow-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+    .flow-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+    @keyframes flowNodeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .flow-node-anim { animation: flowNodeIn 0.35s ease both; }
+
+    /* ============================================================
+       ATTENTION HEATMAP OVERLAY VISUALIZATION
+       ============================================================ */
+    .attention-heatmap-panel {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 0.5rem;
+      padding: 0.65rem 0.85rem;
+    }
+
+    .attention-scroll-wrap {
+      /* Custom scrollbar */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.08) transparent;
+    }
+    .attention-scroll-wrap::-webkit-scrollbar { width: 4px; }
+    .attention-scroll-wrap::-webkit-scrollbar-track { background: transparent; }
+    .attention-scroll-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 999px; }
+
+    .attention-token-span {
+      display: inline-block;
+      padding: 0.1rem 0.22rem;
+      margin: 1.5px;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      white-space: pre-wrap;
+      font-family: var(--font-mono, monospace);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: help;
+      position: relative;
+    }
+    .attention-token-span:hover {
+      transform: scale(1.08) translateY(-1px);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+      z-index: 10;
+      border-color: rgba(99, 102, 241, 0.8) !important;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">Q</div>
+      <div>
+        <h1>Qwen2.5 Context Explorer</h1>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span>Model: Qwen2.5-0.5B-Instruct</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Inputs & Form -->
+    <div class="card left-column">
+      <div class="section-title">Inference Inputs</div>
+
+      <!-- Collapsible History Section -->
+      <div class="history-container">
+        <div class="history-header" onclick="toggleHistory()">
+          <span class="history-title">
+            <span class="history-icon">📜</span> Past Generations (<span id="history-count">0</span>)
+          </span>
+          <span id="history-toggle-arrow" class="history-arrow">▼</span>
+        </div>
+        <div id="history-content-list" class="history-list" style="display: none;">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="system-input">System Instructions</label>
+        <textarea id="system-input" placeholder="You are a precise assistant. Answer the user's question using ONLY the provided context.">You are a precise assistant. Answer the user's question using ONLY the provided context.</textarea>
+      </div>
+
+      <div class="form-group">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+          <label for="context-input">Context Document</label>
+          <span style="font-size: 0.8rem; color: var(--accent-cyan); cursor: pointer;" onclick="loadSampleText()">Load Sample Text</span>
+        </div>
+        
+        <!-- Drag & Drop Uploader -->
+        <div class="upload-container" id="drop-zone">
+          <div class="upload-icon">📥</div>
+          <div class="upload-text">Drag & drop context text file here or <span>browse files</span></div>
+          <input type="file" id="file-input" accept=".txt,.md,.json,.csv,.log,.py">
+        </div>
+        
+        <textarea id="context-input" placeholder="Paste or upload long reference text/context here..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="question-input">User Question / Query</label>
+        <input type="text" id="question-input" placeholder="What is the key vulnerability of the AeroMesh?" value="What is the key vulnerability of the AeroMesh?">
+      </div>
+
+      <div class="controls-row">
+        <div class="range-slider">
+          <div class="slider-header">
+            <label for="temp-slider">Temperature</label>
+            <span class="slider-value" id="temp-val">0.10</span>
+          </div>
+          <input type="range" id="temp-slider" min="0" max="1" step="0.05" value="0.1">
+        </div>
+
+        <div class="range-slider">
+          <div class="slider-header">
+            <label for="tokens-slider">Max New Tokens</label>
+            <span class="slider-value" id="tokens-val">150</span>
+          </div>
+          <input type="range" id="tokens-slider" min="10" max="1000" step="10" value="150">
+        </div>
+      </div>
+
+      <button class="btn" id="generate-btn">
+        <span>Run Inference</span>
+      </button>
+    </div>
+
+    <!-- Right Column: Stats & Outputs -->
+    <div class="right-column">
+      <!-- Token Window Gauge -->
+      <div class="card">
+        <div class="section-title">Context Window Utilization (Max: 32,768 Tokens)</div>
+        
+        <div class="token-meter-container">
+          <div class="meter-label-row">
+            <span class="meter-title">Total Active Context Limit</span>
+            <span class="meter-percentage" id="meter-perc">0.0%</span>
+          </div>
+          <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="token-details-grid">
+          <div class="token-item">
+            <span class="token-item-label">System Instruction</span>
+            <span class="token-item-val" id="tok-system">0</span>
+          </div>
+          <div class="token-item">
+            <span class="token-item-label">Context Document</span>
+            <span class="token-item-val" id="tok-context">0</span>
+          </div>
+          <div class="token-item">
+            <span class="token-item-label">User Question</span>
+            <span class="token-item-val" id="tok-question">0</span>
+          </div>
+          <div class="token-item">
+            <span class="token-item-label">Total Prompt Tokens</span>
+            <span class="token-item-val" id="tok-total" style="color: var(--accent-indigo);">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Output & Visualizations Panel -->
+      <div class="card" style="flex: 1; min-height: 520px; display: flex; flex-direction: column;">
+        <div class="tabs-nav">
+          <button class="tab-btn active" onclick="switchTab('answer')">Generated Answer</button>
+          <button class="tab-btn" id="tab-atlas-btn" onclick="switchTab('atlas')">2D Token Atlas</button>
+          <button class="tab-btn" id="tab-heatmap-btn" onclick="switchTab('heatmap')" style="position: relative;">
+            Relevance Heatmap
+            <span id="heatmap-badge" style="display: none; position: absolute; top: 2px; right: -8px; width: 8px; height: 8px; background-color: var(--accent-blue); border-radius: 50%; box-shadow: 0 0 8px var(--accent-blue); animation: pulse 2s infinite;"></span>
+          </button>
+          <button class="tab-btn" id="tab-explainer-btn" onclick="switchTab('explainer')">How It Searches</button>
+        </div>
+
+        <!-- Tab 1: Answer Content -->
+        <div class="tab-pane active" id="pane-answer">
+          <div class="output-box">
+            <div class="output-placeholder" id="placeholder">
+              Provide inputs on the left and click "Run Inference" to view the response & semantic analysis.
+            </div>
+            <div class="output-content" id="output-text"></div>
+          </div>
+
+          <!-- Answer Source callout box -->
+          <div class="source-card" id="source-sentence-card">
+            <div class="source-card-header">
+              <span class="source-card-title">
+                <span class="source-card-dot"></span>
+                Answer Source (Highest Semantic Relevance)
+              </span>
+              <button class="source-card-link" onclick="switchTab('heatmap')">View in Full Heatmap →</button>
+            </div>
+            <p class="source-card-text" id="source-sentence-text"></p>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <span class="metric-title">Gen Time</span>
+              <span class="metric-value" id="val-time">-</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-title">Output Tokens</span>
+              <span class="metric-value" id="val-tokens">-</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-title">Speed</span>
+              <span class="metric-value" id="val-speed">-</span>
+            </div>
+          </div>
+          
+          <!-- Execution Trace Log -->
+          <div class="trace-title" style="margin-top: 1.25rem; margin-bottom: 0.5rem;">
+            <span>Inference Execution Trace</span>
+            <span id="trace-status" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">IDLE</span>
+          </div>
+          <div class="trace-card" id="trace-log">
+            <div class="trace-line info">&gt; Waiting for inference run...</div>
+          </div>
+        </div>
+
+        <!-- Tab 2: 2D Token Atlas (Plotly Chart) -->
+        <div class="tab-pane" id="pane-atlas">
+          <div class="viz-placeholder" id="atlas-placeholder">
+            Run inference to map context embeddings in 2D space.
+          </div>
+          <div id="plotly-chart" style="display:none;"></div>
+        </div>
+
+        <!-- Tab 3: Relevance Heatmap -->
+        <div class="tab-pane" id="pane-heatmap">
+          <div class="viz-placeholder" id="heatmap-placeholder">
+            Run inference to compute context sentence relevance relative to the query.
+          </div>
+          <div id="heatmap-container" style="display:none; flex-direction:column; gap: 1rem;">
+            <!-- Keyword Search Controls -->
+            <div class="heatmap-search-container" style="display: flex; align-items: center; gap: 0.75rem; background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: 0.5rem; padding: 0.6rem 0.85rem;">
+              <span style="font-size: 1rem; color: var(--accent-cyan);">🔍</span>
+              <input type="text" id="heatmap-search-input" placeholder="Search keywords in context..." style="flex: 1; border: none; background: transparent; padding: 0; font-size: 0.95rem; color: var(--text-main); outline: none;" />
+              <span id="search-count" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted); min-width: 60px; text-align: right;">0 of 0</span>
+              <div style="display: flex; gap: 0.35rem;">
+                <button id="search-prev-btn" class="btn" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--panel-border); border-radius: 0.25rem; color: var(--text-main); margin: 0; box-shadow: none; height: auto;">▲</button>
+                <button id="search-next-btn" class="btn" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid var(--panel-border); border-radius: 0.25rem; color: var(--text-main); margin: 0; box-shadow: none; height: auto;">▼</button>
+              </div>
+            </div>
+
+            <div class="heatmap-legend" style="display: flex; gap: 1.5rem; align-items: center; font-size: 0.85rem; color: var(--text-muted); background: rgba(255, 255, 255, 0.02); padding: 0.75rem 1.25rem; border-radius: 0.5rem; border: 1px solid var(--panel-border); justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 12px; height: 12px; background: rgba(234, 179, 8, 0.18); border-bottom: 2px solid rgba(234, 179, 8, 0.65); border-radius: 2px;"></div>
+                <span>Searched Context (Yellow)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 12px; height: 12px; background: rgba(59, 130, 246, 0.3); border: 2px solid rgba(59, 130, 246, 0.8); border-radius: 4px;"></div>
+                <span>Source of Answer (Blue Highlight)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 12px; height: 12px; background: transparent; border: 1px dashed rgba(255,255,255,0.2); border-radius: 2px;"></div>
+                <span>Excluded/Not Searched (No Highlight)</span>
+              </div>
+            </div>
+            <div class="heatmap-box" id="heatmap-content"></div>
+          </div>
+        </div>
+
+        <!-- Tab 4: How It Searches / Pipeline Explainer -->
+        <div class="tab-pane" id="pane-explainer">
+          <div class="viz-placeholder" id="explainer-placeholder" style="min-height: 200px;">
+            Run inference to view the step-by-step semantic search process.
+          </div>
+          
+          <div id="explainer-container" style="display:none; flex-direction:column; gap: 1.25rem;">
+
+            <!-- ===== GENERATION CINEMA ===== -->
+            <div class="cinema-panel" id="cinema-panel">
+              <div class="cinema-header">
+                <div class="cinema-title">
+                  🎬 Generation Cinema
+                  <span id="cinema-live-badge" class="cinema-live-badge" style="display:none;">
+                    <span class="cinema-live-dot"></span> LIVE
+                  </span>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                  <span id="cinema-token-counter" style="font-family: var(--font-mono); font-size:0.72rem; color:#6b7280; display:none;"></span>
+                  <button id="cinema-replay-btn" class="cinema-ctrl-btn" style="display:none; font-size:0.72rem; padding: 0.25rem 0.65rem;" onclick="cinemaReplay()">▶ Replay Cinema</button>
+                </div>
+              </div>
+
+              <!-- Placeholder before generation -->
+              <div id="cinema-placeholder" class="cinema-placeholder">
+                <span class="cinema-placeholder-icon">🎬</span>
+                Run inference to see how the model generates each token step-by-step from the retrieved context.
+              </div>
+
+              <!-- Cinema content (shown after generation) -->
+              <div id="cinema-content" style="display:none;">
+
+                <!-- Source sentence: what the model is reading from -->
+                <div class="cinema-source">
+                  <div class="cinema-source-label">
+                    📌 Retrieved Source Sentence
+                    <span style="margin-left:auto; font-size:0.62rem; color:#6b7280; font-weight:400; text-transform:none;">Highest semantic relevance to your query</span>
+                  </div>
+                  <div class="cinema-source-text" id="cinema-source-text">—</div>
+                </div>
+
+                <!-- Arrow showing flow from source → generation -->
+                <div class="cinema-arrow">
+                  <div class="cinema-arrow-line"></div>
+                  <span style="white-space:nowrap; padding: 0 0.5rem;">model.generate() ↓ token by token</span>
+                  <div class="cinema-arrow-line"></div>
+                </div>
+
+                <!-- Token generation area -->
+                <div class="cinema-tokens-area">
+                  <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280; margin-bottom:0.5rem;">
+                    Generated Answer Tokens
+                    <span style="font-weight:400; color:#4b5563; margin-left:0.5rem; text-transform:none;">— click any token to inspect it</span>
+                  </div>
+
+                  <!-- Live streaming mini-view (shown during generation) -->
+                  <div id="cinema-live-stream" style="display:none; font-family:var(--font-mono); font-size:0.82rem; color:#e2e8f0; line-height:1.8; min-height:40px; background:rgba(0,0,0,0.2); border-radius:0.5rem; padding:0.75rem; border:1px dashed rgba(99,102,241,0.3); margin-bottom:0.5rem;">
+                    <span id="cinema-live-text"></span><span class="typing-cursor" id="cinema-live-cursor"></span>
+                  </div>
+
+                  <!-- Post-generation interactive token display -->
+                  <div class="cinema-tokens-wrap" id="cinema-tokens-wrap" style="display:none;"></div>
+                </div>
+
+                <!-- Pre-Selection Pipeline Visualization -->
+                <div class="pipeline-panel" id="pipeline-panel" style="display:none;">
+                  <div class="pipeline-header">
+                    <span class="pipeline-title">⚙️ Pre-Selection Operations Pipeline</span>
+                    <span class="pipeline-token-label" id="pipeline-chosen-label">—</span>
+                  </div>
+                  <div class="pipeline-stages" id="pipeline-stages"></div>
+                  <div class="pipeline-divider"></div>
+                </div>
+
+                <!-- Context Attention Heatmap Panel -->
+                <div class="attention-heatmap-panel" id="attention-heatmap-panel" style="display:none; margin: 0 1.1rem 0.75rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.35rem;">
+                    <span style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#a5b4fc;">🔍 Context Attention Weight Map</span>
+                    <span id="attention-stats-label" style="font-family:var(--font-mono); font-size:0.68rem; color:#6b7280;">Token #1</span>
+                  </div>
+                  <div class="attention-scroll-wrap" style="max-height:160px; overflow-y:auto; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:0.5rem; padding:0.65rem; font-family:var(--font-mono); font-size:0.75rem; line-height:1.6; color:#9ca3af; word-break:break-word;">
+                    <div id="attention-tokens-container"></div>
+                  </div>
+                  <!-- Legend -->
+                  <div style="display:flex; gap:0.75rem; align-items:center; font-size:0.6rem; color:#6b7280; margin-top:0.35rem; justify-content:flex-end;">
+                    <span style="display:flex; align-items:center; gap:3px;"><span style="width:8px; height:8px; background:rgba(99,102,241,0.08); border:1px solid rgba(255,255,255,0.05); border-radius:2px;"></span> 0% Attention</span>
+                    <span style="display:flex; align-items:center; gap:3px;"><span style="width:8px; height:8px; background:rgba(99,102,241,1); border-radius:2px;"></span> Max Attention (Normalised)</span>
+                  </div>
+                </div>
+
+                <!-- Alternatives panel -->
+                <div class="cinema-alts-panel" id="cinema-alts-panel" style="display:none;">
+                  <div class="cinema-alts-label" id="cinema-alts-label">Top-5 Alternatives at Token #1</div>
+                  <div class="cinema-alts-grid" id="cinema-alts-grid"></div>
+                </div>
+
+                <!-- Playback controls -->
+                <div class="cinema-controls" id="cinema-controls" style="display:none;">
+                  <button class="cinema-ctrl-btn" id="cinema-btn-first"  onclick="cinemaSeek(0)"    title="Go to first token">⏮</button>
+                  <button class="cinema-ctrl-btn" id="cinema-btn-prev"   onclick="cinemaSeek(cinemaState.index - 1)" title="Previous token">◀</button>
+                  <button class="cinema-ctrl-btn" id="cinema-btn-play"   onclick="cinemaTogglePlay()"  title="Play/Pause">▶</button>
+                  <button class="cinema-ctrl-btn" id="cinema-btn-next"   onclick="cinemaSeek(cinemaState.index + 1)" title="Next token">▶</button>
+                  <button class="cinema-ctrl-btn" id="cinema-btn-last"   onclick="cinemaSeek(cinemaState.tokens.length - 1)" title="Go to last">⏭</button>
+                  <span class="cinema-speed-label">Speed:</span>
+                  <select class="cinema-speed-select" id="cinema-speed" onchange="cinemaState.speed = parseInt(this.value)">
+                    <option value="1200">0.5×</option>
+                    <option value="600" selected>1×</option>
+                    <option value="300">2×</option>
+                    <option value="120">5×</option>
+                    <option value="50">10×</option>
+                  </select>
+                  <span class="cinema-position" id="cinema-position">Token 0 / 0</span>
+                </div>
+              </div>
+
+              <!-- ---- old chip timeline (retained for compat, now hidden) ---- -->
+              <div id="token-chips-timeline" style="display:none; flex-direction:column; gap:0.6rem; padding: 0 1.1rem 0.75rem;">
+                <div id="token-chip-flow" style="display:flex; flex-wrap:wrap; gap:0.3rem; align-items:flex-start; line-height:1.8;"></div>
+              </div>
+
+              <!-- Speed chart retained below -->
+              <div id="token-speed-chart-wrap" style="display:none; padding: 0.75rem 1.1rem 1rem;">
+                <div style="font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem;">⚡ Generation Speed (tokens/sec over time)</div>
+                <div id="token-speed-chart" style="width:100%; height:120px;"></div>
+              </div>
+
+              <!-- Hidden legacy elements for JS compat -->
+              <div id="token-stream-live" style="display:none;">
+                <span id="token-stream-text"></span>
+              </div>
+              <div id="token-gen-placeholder" style="display:none;"></div>
+              <span id="token-live-counter" style="display:none;"></span>
+              <button id="token-replay-btn" style="display:none;"></button>
+            </div>
+            <!-- ===== END GENERATION CINEMA ===== -->
+
+
+            <!-- ===== AUTOREGRESSIVE GENERATION FLOW ===== -->
+            <div class="flow-panel" id="token-flow-panel" style="display:none;">
+              <div class="flow-panel-header">
+                <div class="flow-panel-title">
+                  🔗 Autoregressive Generation Flow
+                  <span class="flow-panel-subtitle">— the sequential decision chain: how each token was chosen from context</span>
+                </div>
+                <span id="flow-token-count" style="font-family:var(--font-mono); font-size:0.68rem; color:#6b7280;"></span>
+              </div>
+              <!-- legend -->
+              <div class="flow-legend">
+                <div class="flow-legend-item"><div class="flow-legend-dot" style="background:#10b981;"></div> High confidence (≥80%)</div>
+                <div class="flow-legend-item"><div class="flow-legend-dot" style="background:#f59e0b;"></div> Mid confidence (40–79%)</div>
+                <div class="flow-legend-item"><div class="flow-legend-dot" style="background:#ef4444;"></div> Low confidence (<40%)</div>
+                <div class="flow-legend-item"><div class="flow-legend-dot" style="background:#374151;"></div> Unchosen alternatives</div>
+              </div>
+              <div class="flow-scroll-wrap">
+                <div id="token-flow-svg-container"></div>
+              </div>
+            </div>
+            <!-- ===== END AUTOREGRESSIVE GENERATION FLOW ===== -->
+
+            <!-- Pipeline Steps: horizontal flow -->
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+              <div style="font-size: 0.8rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span>⚙️</span> Semantic Search Pipeline
+              </div>
+              <div style="display: flex; gap: 0.75rem; align-items: stretch;">
+                <div style="flex:1; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.25); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
+                  <div style="font-size: 1.1rem;">1️⃣</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent-indigo); margin: 0.2rem 0;">Split</div>
+                  <p style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">Context → Sentences</p>
+                </div>
+                <div style="display:flex; align-items:center; color: var(--text-muted);">→</div>
+                <div style="flex:1; background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.25); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
+                  <div style="font-size: 1.1rem;">2️⃣</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent-cyan); margin: 0.2rem 0;">Embed</div>
+                  <p style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">Text → 896-D Vector</p>
+                </div>
+                <div style="display:flex; align-items:center; color: var(--text-muted);">→</div>
+                <div style="flex:1; background: rgba(244,63,94,0.08); border: 1px solid rgba(244,63,94,0.25); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
+                  <div style="font-size: 1.1rem;">3️⃣</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent-rose); margin: 0.2rem 0;">Cosine Align</div>
+                  <p style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">Query · Sentence</p>
+                </div>
+                <div style="display:flex; align-items:center; color: var(--text-muted);">→</div>
+                <div style="flex:1; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.25); border-radius: 0.5rem; padding: 0.75rem; text-align: center;">
+                  <div style="font-size: 1.1rem;">4️⃣</div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: var(--accent-blue); margin: 0.2rem 0;">Retrieve</div>
+                  <p style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.4;">Max Score → Answer</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sentence Pill Selector -->
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+              <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem;">🔎 Click any sentence pill to inspect its vector alignment</div>
+              <div id="explainer-sentence-pills" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+            </div>
+
+            <!-- Selected Sentence Display -->
+            <div id="selected-sentence-display" style="background: rgba(59,130,246,0.07); border: 1px solid rgba(59,130,246,0.25); border-left: 4px solid var(--accent-blue); border-radius: 0.75rem; padding: 1rem 1.25rem; display: none; flex-direction: column; gap: 0.4rem;">
+              <div style="font-size: 0.72rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                📌 Inspecting Sentence
+                <span id="selected-sentence-relevance" style="margin-left: auto; font-size: 0.82rem; font-weight: 700;"></span>
+              </div>
+              <p id="selected-sentence-full-text" style="font-size: 0.9rem; color: #e2e8f0; line-height: 1.6; font-style: italic; margin: 0;"></p>
+            </div>
+
+            <!-- ===== COMPUTATION BREAKDOWN SECTION ===== -->
+            <div id="computation-breakdown" style="display:none; flex-direction:column; gap: 0.75rem;">
+
+              <!-- Two-path flow diagram -->
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.85rem; display:flex; align-items:center; gap:0.4rem;">
+                  🔬 Exact Computation — What Gets Embedded vs What the LLM Sees
+                </div>
+
+                <!-- Dual path diagram -->
+                <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.75rem; align-items: start;">
+
+                  <!-- Path A: Similarity embedding -->
+                  <div style="background: rgba(244,63,94,0.06); border: 1px solid rgba(244,63,94,0.25); border-radius: 0.6rem; padding: 0.85rem;">
+                    <div style="font-size: 0.72rem; font-weight: 800; color: #f43f5e; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem; display:flex; align-items:center; gap:0.3rem;">
+                      <span style="font-size: 1rem;">🔴</span> Similarity Path (Embedding)
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                      <div style="background: rgba(244,63,94,0.12); border-radius: 0.35rem; padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #fca5a5; font-family: var(--font-mono); border-left: 3px solid #f43f5e;" id="embed-query-box">⏳ User Query</div>
+                      <div style="text-align:center; color: #f43f5e; font-size: 0.8rem;">↓</div>
+                      <div style="background: rgba(0,0,0,0.3); border-radius: 0.35rem; padding: 0.4rem 0.6rem; font-size: 0.7rem; color: #9ca3af; border: 1px dashed rgba(244,63,94,0.2);">
+                        model.get_input_embeddings()(token_ids)<br>
+                        <span style="color:#6b7280;">→ mean over tokens → 896-D vector → normalize</span>
+                      </div>
+                      <div style="text-align:center; color: #f43f5e; font-size: 0.8rem;">↓</div>
+                      <div style="background: rgba(244,63,94,0.08); border-radius: 0.35rem; padding: 0.4rem 0.6rem; font-size: 0.7rem; color: #f87171; border: 1px solid rgba(244,63,94,0.2);">
+                        Q = normalized 896-D vector
+                      </div>
+                    </div>
+                    <div style="margin-top:0.6rem; padding-top:0.6rem; border-top: 1px solid rgba(244,63,94,0.15); font-size:0.68rem; color: #6b7280;">
+                      🚫 System instructions <strong style="color:#f87171;">NOT included</strong> in embedding
+                    </div>
+                  </div>
+
+                  <!-- Center divider -->
+                  <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.3rem; padding-top: 1.5rem;">
+                    <div style="width:1px; height: 40px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent);"></div>
+                    <div style="font-size: 0.65rem; color: #4b5563; text-align:center; white-space:nowrap;">two separate<br>pipelines</div>
+                    <div style="width:1px; height: 40px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent);"></div>
+                  </div>
+
+                  <!-- Path B: LLM generation -->
+                  <div style="background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.25); border-radius: 0.6rem; padding: 0.85rem;">
+                    <div style="font-size: 0.72rem; font-weight: 800; color: #818cf8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem; display:flex; align-items:center; gap:0.3rem;">
+                      <span style="font-size: 1rem;">🟣</span> LLM Generation Path
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.4rem;">
+                      <div style="background: rgba(99,102,241,0.12); border-radius: 0.35rem; padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #a5b4fc; font-family: var(--font-mono); border-left: 3px solid #6366f1;" id="llm-system-box">⏳ System Instructions</div>
+                      <div style="background: rgba(99,102,241,0.08); border-radius: 0.35rem; padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #a5b4fc; font-family: var(--font-mono); border-left: 3px solid rgba(99,102,241,0.5);" id="llm-context-box">⏳ Context + Question</div>
+                      <div style="text-align:center; color: #6366f1; font-size: 0.8rem;">↓ chat_template</div>
+                      <div style="background: rgba(0,0,0,0.3); border-radius: 0.35rem; padding: 0.4rem 0.6rem; font-size: 0.7rem; color: #9ca3af; border: 1px dashed rgba(99,102,241,0.2);">
+                        &lt;|im_start|&gt;system…&lt;|im_start|&gt;user…<br>
+                        <span style="color:#6b7280;">→ model.generate() → streamed answer</span>
+                      </div>
+                    </div>
+                    <div style="margin-top:0.6rem; padding-top:0.6rem; border-top: 1px solid rgba(99,102,241,0.15); font-size:0.68rem; color: #6b7280;">
+                      ✅ System instructions <strong style="color:#a5b4fc;">ARE included</strong> in generation
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Similarity formula with real values -->
+              <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(59,130,246,0.2); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">📐 Exact Similarity Formula — Filled With Real Values</div>
+                <div id="formula-breakdown" style="font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.9; color: #e2e8f0;">Select a sentence pill to see the formula.</div>
+              </div>
+
+              <!-- Token breakdown side by side -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div style="background: rgba(244,63,94,0.05); border: 1px solid rgba(244,63,94,0.2); border-radius: 0.75rem; padding: 0.85rem;">
+                  <div style="font-size: 0.72rem; font-weight: 700; color: #f43f5e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">🔴 Query Tokens (embedded for search)</div>
+                  <div id="query-token-chips" style="display:flex; flex-wrap:wrap; gap:0.3rem;"></div>
+                  <div id="query-token-count" style="font-size: 0.68rem; color: #6b7280; margin-top: 0.5rem;"></div>
+                </div>
+                <div style="background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); border-radius: 0.75rem; padding: 0.85rem;">
+                  <div style="font-size: 0.72rem; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">🔵 Sentence Tokens (embedded for search)</div>
+                  <div id="sentence-token-chips" style="display:flex; flex-wrap:wrap; gap:0.3rem;"></div>
+                  <div id="sentence-token-count" style="font-size: 0.68rem; color: #6b7280; margin-top: 0.5rem;"></div>
+                </div>
+              </div>
+
+            </div>
+            <!-- ===== END COMPUTATION BREAKDOWN ===== -->
+
+            <!-- Radar Chart -->
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+              <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <span>📡 Embedding Vector Profile (8 Dimension Bins)</span>
+                <div style="display: flex; gap: 1rem; font-size: 0.72rem;">
+                  <span style="display:flex; align-items:center; gap:0.3rem;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#f43f5e;"></span> Query</span>
+                  <span style="display:flex; align-items:center; gap:0.3rem;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:#3b82f6;"></span> Sentence</span>
+                </div>
+              </div>
+              <div id="explainer-chart" style="width: 100%; height: 260px;"></div>
+            </div>
+
+            <!-- Math Calculation Box -->
+            <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(167,243,208,0.15); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+              <div style="font-size: 0.78rem; font-weight: 700; color: var(--accent-cyan); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.6rem;">🧮 Cosine Similarity — Step-by-Step Math</div>
+              <div id="math-calculation-box" style="font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.8; color: #a7f3d0; overflow-x: auto; word-break: break-word;">Select a sentence above to see the calculation.</div>
+            </div>
+
+            <!-- Relevance Bar Chart -->
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--panel-border); border-radius: 0.75rem; padding: 1rem 1.25rem;">
+              <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">📊 All Sentences — Relevance Score Ranking</div>
+              <div id="relevance-bar-chart" style="width: 100%; height: 220px;"></div>
+            </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // State DOM selectors
+    const systemInput = document.getElementById('system-input');
+    const contextInput = document.getElementById('context-input');
+    const questionInput = document.getElementById('question-input');
+    const tempSlider = document.getElementById('temp-slider');
+    const tempVal = document.getElementById('temp-val');
+    const tokensSlider = document.getElementById('tokens-slider');
+    const tokensVal = document.getElementById('tokens-val');
+    const generateBtn = document.getElementById('generate-btn');
+    
+    const progressBar = document.getElementById('progress-bar');
+    const meterPerc = document.getElementById('meter-perc');
+    const tokSystem = document.getElementById('tok-system');
+    const tokContext = document.getElementById('tok-context');
+    const tokQuestion = document.getElementById('tok-question');
+    const tokTotal = document.getElementById('tok-total');
+
+    const outputText = document.getElementById('output-text');
+    const placeholder = document.getElementById('placeholder');
+    const valTime = document.getElementById('val-time');
+    const valTokens = document.getElementById('val-tokens');
+    const valSpeed = document.getElementById('val-speed');
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    const traceLog = document.getElementById('trace-log');
+    const traceStatus = document.getElementById('trace-status');
+    const searchInput = document.getElementById('heatmap-search-input');
+    const searchCount = document.getElementById('search-count');
+    const searchPrevBtn = document.getElementById('search-prev-btn');
+    const searchNextBtn = document.getElementById('search-next-btn');
+
+    // Search state variables
+    let currentMatches = [];
+    let currentMatchIndex = -1;
+    let originalHeatmapData = []; // Store raw heatmap data to re-highlight when searching
+
+    // Explainer/pipeline state variables
+    let selectedExplainerIndex = 0;
+    let latestQuestionFingerprint = [];
+    let latestQueryText = '';        // exact user question text sent to server
+    let latestSystemText = '';       // system instruction text sent to server
+
+    const MAX_CONTEXT = 32768;
+
+    // Tab Switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(btn => btn.getAttribute('onclick').includes(tabId));
+      if (activeBtn) activeBtn.classList.add('active');
+      
+      const activePane = document.getElementById(`pane-${tabId}`);
+      if (activePane) activePane.classList.add('active');
+
+      // Hide the notification badge when heatmap is viewed
+      if (tabId === 'heatmap') {
+        const badge = document.getElementById('heatmap-badge');
+        if (badge) badge.style.display = 'none';
+      }
+
+      // Trigger Plotly resize on draw
+      if (tabId === 'atlas') {
+        const gd = document.getElementById('plotly-chart');
+        if (gd && gd.style.display !== 'none') {
+          Plotly.Plots.resize(gd);
+        }
+      } else if (tabId === 'explainer') {
+        const gd = document.getElementById('explainer-chart');
+        if (gd && gd.style.display !== 'none') {
+          Plotly.Plots.resize(gd);
+        }
+      }
+    }
+
+    // Update Slider Values UI
+    tempSlider.addEventListener('input', (e) => {
+      tempVal.textContent = parseFloat(e.target.value).toFixed(2);
+    });
+    tokensSlider.addEventListener('input', (e) => {
+      tokensVal.textContent = e.target.value;
+    });
+
+    // File Drag & Drop + Selection
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        contextInput.value = evt.target.result;
+        triggerTokenCount();
+      };
+      reader.readAsText(file);
+    }
+
+    // Dynamic Token Counting with Debouncing
+    let debounceTimer;
+    function triggerTokenCount() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(performTokenCount, 500);
+    }
+
+    systemInput.addEventListener('input', triggerTokenCount);
+    contextInput.addEventListener('input', triggerTokenCount);
+    questionInput.addEventListener('input', triggerTokenCount);
+
+    async function performTokenCount() {
+      const payload = {
+        system_instruction: systemInput.value,
+        context_text: contextInput.value,
+        question: questionInput.value
+      };
+
+      try {
+        const response = await fetch('/count_tokens', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) return;
+        const data = await response.json();
+
+        // Update UI counters
+        tokSystem.textContent = data.system;
+        tokContext.textContent = data.context;
+        tokQuestion.textContent = data.question;
+        tokTotal.textContent = data.total;
+
+        // Calculate and Update Gauge
+        const percentage = (data.total / MAX_CONTEXT) * 100;
+        meterPerc.textContent = `${percentage.toFixed(2)}%`;
+        progressBar.style.width = `${Math.min(percentage, 100)}%`;
+
+        // Classify limits
+        progressBar.className = 'progress-bar-inner';
+        tokTotal.className = 'token-item-val';
+        if (data.total > MAX_CONTEXT * 0.9) {
+          progressBar.classList.add('danger');
+          tokTotal.classList.add('danger');
+        } else if (data.total > MAX_CONTEXT * 0.7) {
+          progressBar.classList.add('warning');
+          tokTotal.classList.add('warning');
+        }
+
+        // Enable or disable generate button if we exceed physical bounds
+        if (data.total >= MAX_CONTEXT) {
+          generateBtn.disabled = true;
+          generateBtn.textContent = 'Token Limit Exceeded!';
+        } else {
+          generateBtn.disabled = false;
+          generateBtn.innerHTML = '<span>Run Inference</span>';
+        }
+
+      } catch (err) {
+        console.error('Error counting tokens:', err);
+      }
+    }
+
+    // Load sample text
+    function loadSampleText() {
+      contextInput.value = `Project Aetheris is a next-generation neural interface developed by NeuroLink Labs in the year 2042. It operates by mapping quantum state fluctuations in synaptic vesicles, specifically targeting the CA3 region of the hippocampus. Unlike previous systems that required invasive surgical microelectrodes, Aetheris utilizes a non-invasive sprayable graphene-based mesh (called AeroMesh) that self-assembles upon entering the bloodstream via inhalation. The project is currently led by Dr. Helena Vance, who previously headed the synaptic mapping initiative at CERN. A key vulnerability of the AeroMesh is its sensitivity to strong localized magnetic fields (above 2.5 Tesla), which can cause the graphene structures to lose coherence and dissolve harmlessly into biological carbon compounds.`;
+      triggerTokenCount();
+    }
+
+    // Execution trace logging helper
+    function logTrace(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = `trace-line ${type}`;
+      
+      let icon = '📝';
+      if (type === 'success') icon = '🟢';
+      if (type === 'warning') icon = '⚠️';
+      if (type === 'hardware') icon = '💻';
+      
+      line.innerHTML = `<span style="color: #6b7280;">[${timestamp}]</span> <span>${icon}</span> <span>${message}</span>`;
+      traceLog.appendChild(line);
+      traceLog.scrollTop = traceLog.scrollHeight;
+    }
+    
+    function clearTrace() {
+      traceLog.innerHTML = '';
+    }
+
+    // Keyword Search within heatmap text
+    function performSearch() {
+      const query = searchInput.value.toLowerCase().trim();
+      const contentBox = document.getElementById('heatmap-content');
+      contentBox.innerHTML = '';
+
+      if (!originalHeatmapData || originalHeatmapData.length === 0) return;
+
+      // Find the maximum relevance score to identify where it gets the answer
+      let maxRelevance = -1;
+      originalHeatmapData.forEach(item => {
+        if (item.relevance > maxRelevance) {
+          maxRelevance = item.relevance;
+        }
+      });
+
+      originalHeatmapData.forEach(item => {
+        const span = document.createElement('span');
+        span.className = 'heatmap-sentence';
+        
+        // Since the model searches the entire active context to formulate the answer,
+        // we highlight all active context sentences in yellow.
+        // If a sentence is missing/excluded from the model prompt (e.g. truncated), it is left unhighlighted.
+        const isSearched = true; // All loaded context sentences are sent to and searched by the model
+        
+        // The sentence with the highest semantic relevance contains the actual answer
+        const isAnswerSource = (item.relevance === maxRelevance && maxRelevance > 0);
+
+        if (isAnswerSource) {
+          // Highlight in full blue color
+          span.style.backgroundColor = 'rgba(59, 130, 246, 0.35)'; 
+          span.style.border = '2px solid rgba(59, 130, 246, 0.85)';
+          span.style.padding = '2px 6px';
+          span.style.borderRadius = '4px';
+          span.style.fontWeight = '600';
+          span.style.color = '#ffffff';
+        } else if (isSearched) {
+          // Soft yellow background highlighting for active context sentences
+          span.style.backgroundColor = 'rgba(234, 179, 8, 0.18)'; 
+          span.style.borderBottom = '2px solid rgba(234, 179, 8, 0.65)';
+          span.style.borderTop = 'none';
+          span.style.borderLeft = 'none';
+          span.style.borderRight = 'none';
+          span.style.padding = '0';
+          span.style.fontWeight = 'normal';
+        } else {
+          // Leave clean without yellow highlight if missing/excluded
+          span.style.backgroundColor = 'transparent';
+          span.style.border = 'none';
+          span.style.padding = '0';
+          span.style.fontWeight = 'normal';
+        }
+        span.title = `Semantic Relevance: ${(item.relevance * 100).toFixed(1)}%`;
+
+        const sentenceText = item.text + ' ';
+        // Escape HTML to prevent XSS
+        const escapedText = sentenceText
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+
+        if (query) {
+          const index = escapedText.toLowerCase().indexOf(query);
+          if (index !== -1) {
+            let pos = 0;
+            let resultHtml = "";
+            const queryLen = query.length;
+            
+            while (true) {
+              const nextPos = escapedText.toLowerCase().indexOf(query, pos);
+              if (nextPos === -1) {
+                resultHtml += escapedText.substring(pos);
+                break;
+              }
+              resultHtml += escapedText.substring(pos, nextPos);
+              resultHtml += `<span class="search-match">${escapedText.substring(nextPos, nextPos + queryLen)}</span>`;
+              pos = nextPos + queryLen;
+            }
+            span.innerHTML = resultHtml;
+          } else {
+            span.textContent = sentenceText;
+          }
+        } else {
+          span.textContent = sentenceText;
+        }
+        
+        contentBox.appendChild(span);
+      });
+
+      // Gather matches
+      currentMatches = Array.from(contentBox.querySelectorAll('.search-match'));
+      
+      if (query && currentMatches.length > 0) {
+        if (currentMatchIndex === -1 || currentMatchIndex >= currentMatches.length) {
+          currentMatchIndex = 0;
+        }
+        currentMatches[currentMatchIndex].classList.add('active');
+        searchCount.textContent = `${currentMatchIndex + 1} of ${currentMatches.length}`;
+        currentMatches[currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        searchCount.textContent = '0 of 0';
+      }
+    }
+
+    function navigateSearch(direction) {
+      if (currentMatches.length === 0) return;
+      
+      if (currentMatchIndex >= 0 && currentMatchIndex < currentMatches.length) {
+        currentMatches[currentMatchIndex].classList.remove('active');
+      }
+      
+      currentMatchIndex = (currentMatchIndex + direction + currentMatches.length) % currentMatches.length;
+      
+      const activeMatch = currentMatches[currentMatchIndex];
+      activeMatch.classList.add('active');
+      
+      searchCount.textContent = `${currentMatchIndex + 1} of ${currentMatches.length}`;
+      activeMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Set up search event listeners
+    searchInput.addEventListener('input', () => {
+      currentMatchIndex = -1;
+      performSearch();
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        navigateSearch(1);
+      }
+    });
+
+    searchPrevBtn.addEventListener('click', () => navigateSearch(-1));
+    searchNextBtn.addEventListener('click', () => navigateSearch(1));
+
+    // Run inference trigger
+    generateBtn.addEventListener('click', async () => {
+      // Toggle states
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<div class="spinner"></div><span>Generating...</span>';
+      
+      placeholder.style.display = 'none';
+      outputText.style.display = 'block';
+      outputText.textContent = 'Thinking...';
+      
+      valTime.textContent = '-';
+      valTokens.textContent = '-';
+      valSpeed.textContent = '-';
+
+      // Hide the source card and heatmap badge during generation
+      const sourceCard = document.getElementById('source-sentence-card');
+      if (sourceCard) sourceCard.style.display = 'none';
+      const badge = document.getElementById('heatmap-badge');
+      if (badge) badge.style.display = 'none';
+      
+      const explainerContainer = document.getElementById('explainer-container');
+      if (explainerContainer) explainerContainer.style.display = 'none';
+      const explainerPlaceholder = document.getElementById('explainer-placeholder');
+      if (explainerPlaceholder) explainerPlaceholder.style.display = 'flex';
+
+      // Reset trace
+      traceStatus.textContent = 'RUNNING';
+      traceStatus.style.color = 'var(--accent-indigo)';
+      clearTrace();
+      logTrace("Initiating model inference workflow...", "info");
+      logTrace(`Tokenizing inputs (Max Context: ${MAX_CONTEXT} tokens)...`, "info");
+      
+      const startInferenceTime = performance.now();
+
+      const payload = {
+        system_instruction: systemInput.value,
+        context_text: contextInput.value,
+        question: questionInput.value,
+        temperature: parseFloat(tempSlider.value),
+        max_new_tokens: parseInt(tokensSlider.value)
+      };
+
+      // Capture for computation breakdown visualization
+      latestQueryText = questionInput.value.trim();
+      latestSystemText = systemInput.value.trim();
+
+      // -------------------------------------------------------
+      // Prep the token-gen panel for live streaming
+      // -------------------------------------------------------
+      const tokenStreamLive = document.getElementById('token-stream-live');
+      const tokenStreamText = document.getElementById('token-stream-text');
+      const tokenLiveCounter = document.getElementById('token-live-counter');
+      const tokenChipsTimeline = document.getElementById('token-chips-timeline');
+      const tokenChipFlow = document.getElementById('token-chip-flow');
+      const tokenGenPlaceholder = document.getElementById('token-gen-placeholder');
+      const tokenReplayBtn = document.getElementById('token-replay-btn');
+      const tokenSpeedChartWrap = document.getElementById('token-speed-chart-wrap');
+
+      if (tokenStreamLive) { tokenStreamText.textContent = ''; }
+      if (tokenChipsTimeline) tokenChipsTimeline.style.display = 'none';
+      if (tokenGenPlaceholder) tokenGenPlaceholder.style.display = 'none';
+      if (tokenLiveCounter) { tokenLiveCounter.textContent = '0 tokens'; }
+      if (tokenReplayBtn) tokenReplayBtn.style.display = 'none';
+      if (tokenSpeedChartWrap) tokenSpeedChartWrap.style.display = 'none';
+
+      // ---- Initialize Generation Cinema for live streaming ----
+      cinemaInit('');  // source sentence will be filled after inference via cinemaFinalize
+
+      // Show explainer-container immediately so cinema is visible
+      const explainerContainer2 = document.getElementById('explainer-container');
+      const explainerPlaceholder2 = document.getElementById('explainer-placeholder');
+      if (explainerContainer2) explainerContainer2.style.display = 'flex';
+      if (explainerPlaceholder2) explainerPlaceholder2.style.display = 'none';
+
+
+
+      // Collected streaming data
+      const streamedTokens = [];     // {text, index, elapsed_ms}
+      let streamTokenCount = 0;
+      outputText.innerHTML = '';     // clear to empty for streaming
+      const cursorEl = document.createElement('span');
+      cursorEl.className = 'typing-cursor';
+      outputText.appendChild(cursorEl);
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          outputText.textContent = `Error: ${errData.error || 'Unknown server error'}`;
+          logTrace(`Inference failed: ${errData.error || 'Server error'}`, 'warning');
+          traceStatus.textContent = 'FAILED';
+          traceStatus.style.color = 'var(--accent-rose)';
+          return;
+        }
+
+        // ----- SSE Stream Reader -----
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = '';
+
+        const processEvent = async (eventData) => {
+          if (eventData === '[DONE]') return;
+          let evt;
+          try { evt = JSON.parse(eventData); } catch { return; }
+
+          if (evt.type === 'token') {
+            // ---- Append token to answer box ----
+            const span = document.createElement('span');
+            span.textContent = evt.token;
+            span.className = 'token-stream-span';
+            outputText.insertBefore(span, cursorEl);
+
+            // ---- Mirror to token-stream-live panel ----
+            if (tokenStreamText) {
+              const miniSpan = document.createElement('span');
+              miniSpan.textContent = evt.token;
+              miniSpan.className = 'token-stream-span';
+              tokenStreamText.appendChild(miniSpan);
+            }
+
+            streamedTokens.push({ text: evt.token, index: evt.index, elapsed_ms: evt.elapsed_ms, prob: evt.prob, top_alternatives: evt.top_alternatives });
+            streamTokenCount++;
+            if (tokenLiveCounter) tokenLiveCounter.textContent = `${streamTokenCount} tokens`;
+
+            // ---- Feed cinema live view ----
+            cinemaAddLiveToken({ text: evt.token, index: evt.index, elapsed_ms: evt.elapsed_ms, prob: evt.prob || 0, top_alternatives: evt.top_alternatives || [] });
+
+          } else if (evt.type === 'done') {
+            // ---- Remove cursor from answer box ----
+            if (cursorEl.parentNode) cursorEl.remove();
+
+            const elapsedSec = ((performance.now() - startInferenceTime) / 1000).toFixed(2);
+            logTrace(`Streaming complete in ${elapsedSec}s.`, 'success');
+            logTrace(`Hardware Target: Running on ${evt.device || 'CPU'}.`, 'hardware');
+            logTrace(`Active Context: Prompt length = ${evt.prompt_tokens} tokens.`, 'info');
+            logTrace('Semantic Alignment: Calculated pairwise cosine similarity scores.', 'info');
+            logTrace(`PCA Projection: Plotted 2D embedding coordinates for top tokens.`, 'info');
+            logTrace(`Completion: Generated ${evt.completion_tokens} tokens in ${evt.generation_time.toFixed(2)}s (${evt.tokens_per_second.toFixed(1)} t/s).`, 'success');
+
+            traceStatus.textContent = 'COMPLETE';
+            traceStatus.style.color = 'var(--accent-emerald)';
+
+            valTime.textContent = `${evt.generation_time.toFixed(2)}s`;
+            valTokens.textContent = evt.completion_tokens;
+            valSpeed.textContent = `${evt.tokens_per_second.toFixed(1)} t/s`;
+
+            // ---- Transition token-stream-live → chip timeline ----
+            if (tokenStreamLive) tokenStreamLive.style.display = 'none';
+            renderTokenTimeline(streamedTokens);
+
+            let bestSent = '';
+            // ---- Process visualizations ----
+            if (evt.visualization) {
+              renderTokenAtlas(evt.visualization.tokens_atlas);
+              renderRelevanceHeatmap(evt.visualization.relevance_heatmap);
+              if (evt.visualization.relevance_heatmap && evt.visualization.relevance_heatmap.length > 0) {
+                let maxRel = -1;
+                evt.visualization.relevance_heatmap.forEach(item => {
+                  if (item.relevance > maxRel) { maxRel = item.relevance; bestSent = item.text; }
+                });
+                if (maxRel > 0 && bestSent) {
+                  const sc = document.getElementById('source-sentence-card');
+                  const st = document.getElementById('source-sentence-text');
+                  if (sc && st) { st.textContent = bestSent; sc.style.display = 'flex'; }
+                }
+              }
+
+              const badge = document.getElementById('heatmap-badge');
+              if (badge) badge.style.display = 'inline-block';
+
+              if (evt.visualization.question_fingerprint) {
+                latestQuestionFingerprint = evt.visualization.question_fingerprint;
+              }
+              if (evt.visualization.relevance_heatmap && evt.visualization.relevance_heatmap.length > 0) {
+                selectedExplainerIndex = 0;
+                renderExplainerList(evt.visualization.relevance_heatmap);
+                updateExplainerDetails(evt.visualization.relevance_heatmap[0]);
+              }
+
+              // ---- Finalize Generation Cinema with per-token data ----
+              const tokenData = evt.visualization.token_data;
+              if (tokenData && tokenData.length > 0) {
+                cinemaFinalize(tokenData, bestSent, evt.visualization.prompt_tokens);
+              } else {
+                // Fallback: use streamedTokens if no probability data
+                cinemaFinalize(streamedTokens, bestSent, null);
+              }
+            } else {
+              // Fallback with no visualization data
+              cinemaFinalize(streamedTokens, '', null);
+            }
+
+            // Save successful generation task to history
+            saveToHistory({
+              system_instruction: payload.system_instruction,
+              context_text: payload.context_text,
+              question: payload.question,
+              temperature: payload.temperature,
+              max_new_tokens: payload.max_new_tokens
+            }, {
+              streamedTokens: streamedTokens,
+              device: evt.device,
+              prompt_tokens: evt.prompt_tokens,
+              completion_tokens: evt.completion_tokens,
+              generation_time: evt.generation_time,
+              tokens_per_second: evt.tokens_per_second,
+              visualization: evt.visualization || null,
+              bestSent: bestSent,
+              outputTextHtml: outputText.innerHTML
+            });
+
+          } else if (evt.type === 'error') {
+            if (cursorEl.parentNode) cursorEl.remove();
+            outputText.textContent = `Error: ${evt.message}`;
+            logTrace(`Server error: ${evt.message}`, 'warning');
+            traceStatus.textContent = 'ERROR';
+            traceStatus.style.color = 'var(--accent-rose)';
+          }
+        };
+
+        // Read SSE stream
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          sseBuffer = lines.pop();
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              await processEvent(line.slice(6).trim());
+            }
+          }
+        }
+
+      } catch (err) {
+        if (cursorEl.parentNode) cursorEl.remove();
+        outputText.textContent = `Communication error: ${err.message}`;
+        logTrace(`Connection error: ${err.message}`, 'warning');
+        traceStatus.textContent = 'ERROR';
+        traceStatus.style.color = 'var(--accent-rose)';
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<span>Run Inference</span>';
+      }
+    });
+
+    // -------------------------------------------------------
+    // Token Timeline Visualization
+    // -------------------------------------------------------
+    let _lastStreamedTokens = [];
+
+    function renderTokenTimeline(tokens) {
+      _lastStreamedTokens = tokens;
+      const chipFlow = document.getElementById('token-chip-flow');
+      const timeline = document.getElementById('token-chips-timeline');
+      const speedWrap = document.getElementById('token-speed-chart-wrap');
+      const replayBtn = document.getElementById('token-replay-btn');
+      const liveCounter = document.getElementById('token-live-counter');
+      if (!chipFlow || !timeline) return;
+
+      chipFlow.innerHTML = '';
+      const n = tokens.length;
+
+      // Color quartiles: indigo (first 25%), cyan (mid 50%), rose (last 25%)
+      const getColor = (idx) => {
+        const pct = idx / Math.max(n - 1, 1);
+        if (pct < 0.25)  return { bg: 'rgba(99,102,241,0.25)', border: 'rgba(99,102,241,0.6)', text: '#a5b4fc' };
+        if (pct < 0.75)  return { bg: 'rgba(6,182,212,0.18)',  border: 'rgba(6,182,212,0.5)',  text: '#67e8f9' };
+        return               { bg: 'rgba(244,63,94,0.18)',  border: 'rgba(244,63,94,0.5)',  text: '#fca5a5' };
+      };
+
+      tokens.forEach((tok, i) => {
+        const c = getColor(i);
+        const chip = document.createElement('span');
+        chip.className = 'token-chip';
+        chip.textContent = tok.text || ' ';
+        chip.title = `Token #${tok.index + 1}  |  ${tok.elapsed_ms}ms from start`;
+        chip.style.cssText = `
+          background: ${c.bg};
+          border: 1px solid ${c.border};
+          color: ${c.text};
+          animation-delay: ${i * 12}ms;
+        `;
+        chipFlow.appendChild(chip);
+      });
+
+      timeline.style.display = 'flex';
+      if (liveCounter) liveCounter.textContent = `${n} tokens total`;
+
+      // Speed chart: compute tokens-per-second in rolling windows of 5
+      if (speedWrap && n > 3) {
+        const windowSize = Math.max(3, Math.floor(n / 10));
+        const speeds = [];
+        const labels = [];
+        for (let i = windowSize; i <= n; i += Math.max(1, Math.floor(windowSize / 2))) {
+          const slice = tokens.slice(i - windowSize, i);
+          const dt = (slice[slice.length - 1].elapsed_ms - slice[0].elapsed_ms) / 1000;
+          if (dt > 0) {
+            speeds.push(+(windowSize / dt).toFixed(1));
+            labels.push(`T${i}`);
+          }
+        }
+        if (speeds.length > 1) {
+          Plotly.newPlot('token-speed-chart', [{
+            x: labels, y: speeds,
+            type: 'bar',
+            marker: { color: speeds.map(s => `rgba(99,102,241,${Math.min(0.9, 0.3 + s / 30)})`),
+                      line: { color: '#6366f1', width: 1 } }
+          }], {
+            paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+            margin: { l: 35, r: 10, t: 5, b: 25 },
+            xaxis: { tickfont: { size: 9, color: '#6b7280' }, gridcolor: 'rgba(255,255,255,0.04)' },
+            yaxis: { tickfont: { size: 9, color: '#6b7280' }, gridcolor: 'rgba(255,255,255,0.04)', title: { text: 't/s', font: { size: 9, color: '#6b7280' } } },
+            font: { color: '#9ca3af' }
+          }, { responsive: true, displayModeBar: false });
+          speedWrap.style.display = 'block';
+        }
+      }
+
+      if (replayBtn) replayBtn.style.display = 'inline-block';
+    }
+
+    function replayTokenAnimation() {
+      const chipFlow = document.getElementById('token-chip-flow');
+      if (!chipFlow || !_lastStreamedTokens.length) return;
+      // Re-render with fresh animation by cloning
+      renderTokenTimeline(_lastStreamedTokens);
+    }
+
+    // -------------------------------------------------------
+    // GENERATION CINEMA — State & Functions
+    // -------------------------------------------------------
+    const cinemaState = {
+      tokens: [],          // full token data array from server
+      index: -1,           // currently focused token index
+      playing: false,      // auto-play state
+      playTimer: null,     // setInterval handle
+      speed: 600,          // ms per token in auto-play (600 = 1×)
+      sourceSentence: '',  // the retrieved source sentence
+      prompt_tokens: [],   // list of prompt tokens as text strings
+    };
+
+    /** Called when inference starts: show cinema panel with live stream */
+    function cinemaInit(sourceSentence) {
+      cinemaState.tokens = [];
+      cinemaState.index = -1;
+      cinemaState.playing = false;
+      cinemaState.sourceSentence = sourceSentence || '';
+      cinemaState.prompt_tokens = [];
+      if (cinemaState.playTimer) { clearInterval(cinemaState.playTimer); cinemaState.playTimer = null; }
+
+      // Show content, hide placeholder
+      const placeholder = document.getElementById('cinema-placeholder');
+      const content = document.getElementById('cinema-content');
+      if (placeholder) placeholder.style.display = 'none';
+      if (content) content.style.display = 'block';
+
+      // Set source sentence
+      const srcEl = document.getElementById('cinema-source-text');
+      if (srcEl) srcEl.textContent = sourceSentence || '(source not yet determined — computing semantic scores…)';
+
+      // Show live stream, hide token wrap
+      const liveStream = document.getElementById('cinema-live-stream');
+      const tokensWrap = document.getElementById('cinema-tokens-wrap');
+      const altsPanel   = document.getElementById('cinema-alts-panel');
+      const pipePanel   = document.getElementById('pipeline-panel');
+      const attnPanel   = document.getElementById('attention-heatmap-panel');
+      const controls    = document.getElementById('cinema-controls');
+      const liveText    = document.getElementById('cinema-live-text');
+      if (liveStream) liveStream.style.display = 'block';
+      if (tokensWrap) { tokensWrap.style.display = 'none'; tokensWrap.innerHTML = ''; }
+      if (altsPanel)  altsPanel.style.display  = 'none';
+      if (pipePanel)  pipePanel.style.display  = 'none';
+      if (attnPanel)  attnPanel.style.display  = 'none';
+      if (controls)   controls.style.display   = 'none';
+      if (liveText)   liveText.textContent = '';
+
+      // Live badge
+      const badge = document.getElementById('cinema-live-badge');
+      if (badge) badge.style.display = 'inline-flex';
+
+      // Hide replay btn
+      const replayBtn = document.getElementById('cinema-replay-btn');
+      if (replayBtn) replayBtn.style.display = 'none';
+      const counter = document.getElementById('cinema-token-counter');
+      if (counter) counter.style.display = 'none';
+    }
+
+    /** Called for each SSE token event during streaming */
+    function cinemaAddLiveToken(tok) {
+      cinemaState.tokens.push(tok);
+      const liveText = document.getElementById('cinema-live-text');
+      if (liveText) {
+        const span = document.createElement('span');
+        span.textContent = tok.text;
+        span.style.cssText = 'animation: tokenPop 0.35s ease-out forwards;';
+        liveText.appendChild(span);
+      }
+      // Update counter
+      const counter = document.getElementById('cinema-token-counter');
+      if (counter) {
+        counter.textContent = `${cinemaState.tokens.length} tokens`;
+        counter.style.display = 'inline';
+      }
+    }
+
+    /** Confidence class helper */
+    function cinemaConfClass(prob) {
+      if (prob >= 0.80) return 'conf-high';
+      if (prob >= 0.40) return 'conf-mid';
+      return 'conf-low';
+    }
+
+    /** Called when generation is done: build interactive token cells */
+    function cinemaFinalize(tokens, sourceSentence, promptTokens) {
+      if (promptTokens) {
+        cinemaState.prompt_tokens = promptTokens;
+      } else {
+        cinemaState.prompt_tokens = [];
+      }
+
+      // Update source sentence if now known
+      if (sourceSentence) {
+        cinemaState.sourceSentence = sourceSentence;
+        const srcEl = document.getElementById('cinema-source-text');
+        if (srcEl) srcEl.textContent = sourceSentence;
+      }
+
+      // Hide live stream
+      const liveStream = document.getElementById('cinema-live-stream');
+      if (liveStream) liveStream.style.display = 'none';
+
+      // Hide live badge
+      const badge = document.getElementById('cinema-live-badge');
+      if (badge) badge.style.display = 'none';
+
+      // Build token cells
+      const tokensWrap = document.getElementById('cinema-tokens-wrap');
+      if (!tokensWrap) return;
+      tokensWrap.innerHTML = '';
+      tokensWrap.style.display = 'flex';
+
+      tokens.forEach((tok, i) => {
+        const cell = document.createElement('div');
+        cell.className = `cinema-token-cell popping ${cinemaConfClass(tok.prob)}`;
+        cell.style.animationDelay = `${i * 18}ms`;
+        cell.dataset.index = i;
+
+        const textEl = document.createElement('div');
+        textEl.className = 'cinema-token-text';
+        textEl.textContent = tok.text || ' ';
+
+        const barEl = document.createElement('div');
+        barEl.className = 'cinema-conf-bar';
+        barEl.style.width = `${Math.max(8, Math.round(tok.prob * 100))}%`;
+        barEl.title = `Confidence: ${(tok.prob * 100).toFixed(1)}%`;
+
+        const idxEl = document.createElement('div');
+        idxEl.className = 'cinema-token-idx';
+        idxEl.textContent = `#${i + 1}`;
+
+        cell.appendChild(textEl);
+        cell.appendChild(barEl);
+        cell.appendChild(idxEl);
+
+        cell.addEventListener('click', () => cinemaSeek(i));
+        cell.title = `Token #${i + 1}: "${tok.text}"  |  Confidence: ${(tok.prob * 100).toFixed(1)}%  |  ${tok.elapsed_ms}ms from start`;
+
+        tokensWrap.appendChild(cell);
+      });
+
+      // Show controls
+      const controls = document.getElementById('cinema-controls');
+      if (controls) controls.style.display = 'flex';
+
+      // Show replay btn & counter
+      const replayBtn = document.getElementById('cinema-replay-btn');
+      if (replayBtn) replayBtn.style.display = 'inline-block';
+      const counter = document.getElementById('cinema-token-counter');
+      if (counter) { counter.textContent = `${tokens.length} tokens`; counter.style.display = 'inline'; }
+
+      // Render flow visualization
+      renderTokenFlowViz(tokens);
+
+      // Auto-seek to first token
+      cinemaSeek(0);
+    }
+
+    /* ==============================================================
+       AUTOREGRESSIVE GENERATION FLOW — SVG Visualization
+       Shows the full token chain: source → t1 → t2 → t3 → ...
+       With unchosen alternatives branching below each step.
+    =============================================================== */
+    function renderTokenFlowViz(tokens) {
+      const panel     = document.getElementById('token-flow-panel');
+      const container = document.getElementById('token-flow-svg-container');
+      const countEl   = document.getElementById('flow-token-count');
+      if (!panel || !container || !tokens || !tokens.length) return;
+
+      panel.style.display = 'block';
+      container.innerHTML = '';
+      if (countEl) countEl.textContent = `${tokens.length} tokens`;
+
+      // ---- Layout constants ----
+      const COL_W    = 120;   // width per token column
+      const NODE_W   = 88;    // chosen-token box width
+      const NODE_H   = 34;    // chosen-token box height
+      const ALT_W    = 74;    // alternative box width
+      const ALT_H    = 24;    // alternative box height
+      const SRC_W    = 110;   // source box width
+      const SRC_H    = 40;
+      const SRC_GAP  = 50;    // gap between source and first token col
+      const CHOSEN_Y = 56;    // Y of chosen token center
+      const ALT_BASE = CHOSEN_Y + NODE_H/2 + 22;  // Y where alternatives start
+      const ALT_GAP  = 34;    // vertical gap between alternatives
+      const MAX_ALTS = 4;     // how many alternatives to show per step
+      const TOTAL_H  = ALT_BASE + MAX_ALTS * ALT_GAP + 28;
+      const TOTAL_W  = 20 + SRC_W + SRC_GAP + tokens.length * COL_W + 30;
+
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('width', TOTAL_W);
+      svg.setAttribute('height', TOTAL_H);
+      svg.style.display = 'block';
+      svg.style.fontFamily = 'var(--font-mono, monospace)';
+
+      // ---- Helper: create SVG element ----
+      function svgEl(tag, attrs) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v));
+        return e;
+      }
+
+      // ---- Helper: color by confidence ----
+      function confColor(prob) {
+        if (prob >= 0.80) return '#10b981';
+        if (prob >= 0.40) return '#f59e0b';
+        return '#ef4444';
+      }
+
+      // ---- Helper: truncate token text for display ----
+      function tokLabel(str, maxLen) {
+        if (!str) return '·';
+        str = str.replace(/\n/g, '↵').replace(/\t/g, '→').trim();
+        if (!str) return '·';
+        return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+      }
+
+      // ---- Arrow marker defs ----
+      const defs = svgEl('defs');
+      ['main-arrow', 'dim-arrow'].forEach((id, i) => {
+        const m = svgEl('marker', {id, markerWidth: 8, markerHeight: 6, refX: 7, refY: 3, orient: 'auto'});
+        const poly = svgEl('polygon', {points: '0 0, 8 3, 0 6', fill: i === 0 ? '#6366f1' : '#374151'});
+        m.appendChild(poly);
+        defs.appendChild(m);
+      });
+      svg.appendChild(defs);
+
+      // ---- Source node ----
+      const srcX = 16;
+      const srcCX = srcX + SRC_W / 2;
+      const srcCY = CHOSEN_Y;
+      const srcRect = svgEl('rect', {x: srcX, y: srcCY - SRC_H/2, width: SRC_W, height: SRC_H, rx: 8, fill: '#92400e', stroke: '#f59e0b', 'stroke-width': 1.5});
+      svg.appendChild(srcRect);
+      const srcLabel1 = svgEl('text', {x: srcCX, y: srcCY - 5, 'text-anchor': 'middle', fill: '#fde68a', 'font-size': 9, 'font-weight': 700});
+      srcLabel1.textContent = '📌 Retrieved';
+      svg.appendChild(srcLabel1);
+      const srcLabel2 = svgEl('text', {x: srcCX, y: srcCY + 8, 'text-anchor': 'middle', fill: '#fde68a', 'font-size': 9, 'font-weight': 700});
+      srcLabel2.textContent = 'Context';
+      svg.appendChild(srcLabel2);
+
+      // ---- Column positions ----
+      const colStart = srcX + SRC_W + SRC_GAP;
+
+      // Arrow: source → first token
+      if (tokens.length > 0) {
+        const ax1 = srcX + SRC_W;
+        const ax2 = colStart + (COL_W - NODE_W) / 2 - 4;
+        svg.appendChild(svgEl('line', {x1: ax1, y1: srcCY, x2: ax2, y2: srcCY, stroke: '#6366f1', 'stroke-width': 2, 'marker-end': 'url(#main-arrow)'}));
+      }
+
+      tokens.forEach((tok, i) => {
+        const delay = i * 40;
+        const cx = colStart + i * COL_W + COL_W / 2;  // column center X
+        const nx = cx - NODE_W / 2;                    // node left X
+        const ny = CHOSEN_Y - NODE_H / 2;              // node top Y
+        const color = confColor(tok.prob || 0);
+        const pct = Math.round((tok.prob || 0) * 100);
+
+        // ---- Step index label above token ----
+        const idxLabel = svgEl('text', {x: cx, y: ny - 6, 'text-anchor': 'middle', fill: '#6b7280', 'font-size': 8.5, 'font-weight': 600});
+        idxLabel.textContent = `#${i + 1}`;
+        idxLabel.style.animation = `flowNodeIn 0.35s ease ${delay}ms both`;
+        svg.appendChild(idxLabel);
+
+        // ---- Chosen token box ----
+        const g = svgEl('g', {class: 'flow-node-anim', style: `animation-delay:${delay}ms`});
+
+        // Glowing background
+        const glow = svgEl('rect', {x: nx - 2, y: ny - 2, width: NODE_W + 4, height: NODE_H + 4, rx: 9, fill: color, opacity: 0.18});
+        g.appendChild(glow);
+
+        // Main box
+        const box = svgEl('rect', {x: nx, y: ny, width: NODE_W, height: NODE_H, rx: 7, fill: color, stroke: color, 'stroke-width': 1.5});
+        g.appendChild(box);
+
+        // Token text inside box
+        const tokText = svgEl('text', {x: cx, y: CHOSEN_Y + 5, 'text-anchor': 'middle', fill: '#fff', 'font-size': 11, 'font-weight': 700});
+        tokText.textContent = tokLabel(tok.text, 9);
+        g.appendChild(tokText);
+
+        // Probability % badge below box
+        const probBadge = svgEl('text', {x: cx, y: ny + NODE_H + 13, 'text-anchor': 'middle', fill: color, 'font-size': 8.5, 'font-weight': 600});
+        probBadge.textContent = `${pct}%`;
+        g.appendChild(probBadge);
+
+        // Tooltip via <title>
+        const title = svgEl('title');
+        title.textContent = `Token #${i+1}: "${tok.text}"\nConfidence: ${pct}%\nTime: ${tok.elapsed_ms}ms from start`;
+        g.appendChild(title);
+
+        svg.appendChild(g);
+
+        // ---- Arrow to next chosen token ----
+        if (i < tokens.length - 1) {
+          const ax1 = nx + NODE_W;
+          const ax2 = colStart + (i+1) * COL_W + (COL_W - NODE_W)/2 - 4;
+          const arrow = svgEl('line', {x1: ax1, y1: CHOSEN_Y, x2: ax2, y2: CHOSEN_Y, stroke: '#6366f1', 'stroke-width': 1.8, 'marker-end': 'url(#main-arrow)', style: `animation:flowNodeIn 0.3s ease ${delay+60}ms both`});
+          svg.appendChild(arrow);
+        }
+
+        // ---- Alternative tokens (unchosen) below ----
+        const alts = (tok.top_alternatives || []).filter(a => !a.is_chosen).slice(0, MAX_ALTS);
+
+        // Vertical dashed line from chosen box down through all alts
+        if (alts.length > 0) {
+          const dashY2 = ALT_BASE + (alts.length - 1) * ALT_GAP + ALT_H / 2;
+          const dashLine = svgEl('line', {
+            x1: cx, y1: ny + NODE_H,
+            x2: cx, y2: dashY2,
+            stroke: '#374151', 'stroke-width': 1, 'stroke-dasharray': '3 3',
+            style: `animation:flowNodeIn 0.4s ease ${delay+80}ms both`
+          });
+          svg.appendChild(dashLine);
+        }
+
+        alts.forEach((alt, ai) => {
+          const altDelay = delay + 80 + ai * 30;
+          const altY = ALT_BASE + ai * ALT_GAP;
+          const altX = cx - ALT_W / 2;
+          // Fade out as rank gets lower
+          const opacity = Math.max(0.2, 0.85 - ai * 0.16);
+          const altPct = Math.round((alt.prob || 0) * 100);
+
+          const ag = svgEl('g', {style: `animation:flowNodeIn 0.3s ease ${altDelay}ms both`});
+
+          // Alt box
+          const altBox = svgEl('rect', {x: altX, y: altY - ALT_H/2, width: ALT_W, height: ALT_H, rx: 5, fill: '#1e293b', stroke: '#374151', 'stroke-width': 1, opacity});
+          ag.appendChild(altBox);
+
+          // Alt text
+          const altTxt = svgEl('text', {x: cx, y: altY + 4, 'text-anchor': 'middle', fill: '#9ca3af', 'font-size': 9, opacity});
+          altTxt.textContent = tokLabel(alt.token, 8);
+          ag.appendChild(altTxt);
+
+          // Alt probability (only if > 0%)
+          if (altPct > 0) {
+            const altProbTxt = svgEl('text', {x: cx, y: altY + ALT_H/2 + 11, 'text-anchor': 'middle', fill: '#6b7280', 'font-size': 7.5, opacity: opacity * 0.8});
+            altProbTxt.textContent = `${altPct}%`;
+            ag.appendChild(altProbTxt);
+          }
+
+          // Tooltip
+          const altTitle = svgEl('title');
+          altTitle.textContent = `Alternative #${ai+1}: "${alt.token}"\nProbability: ${altPct}%\n(not chosen at step #${i+1})`;
+          ag.appendChild(altTitle);
+
+          svg.appendChild(ag);
+        });
+      });
+
+      container.appendChild(svg);
+    }
+
+    /** Seek to a specific token index */
+    function cinemaSeek(idx) {
+      const tokens = cinemaState.tokens;
+      if (!tokens.length) return;
+      idx = Math.max(0, Math.min(tokens.length - 1, idx));
+      cinemaState.index = idx;
+
+      // Update cells: highlight active, dim future ones
+      const cells = document.querySelectorAll('.cinema-token-cell');
+      cells.forEach((cell, i) => {
+        cell.classList.remove('active-token', 'dimmed');
+        if (i === idx) cell.classList.add('active-token');
+        else if (i > idx) cell.classList.add('dimmed');
+      });
+
+      // Scroll active cell into view
+      const activeCell = cells[idx];
+      if (activeCell) activeCell.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+
+      // Update alternatives panel
+      cinemaRenderAlternatives(tokens[idx], idx);
+
+      // Update attention heatmap
+      renderAttentionHeatmap(tokens[idx], idx);
+
+      // Update position display
+      const posEl = document.getElementById('cinema-position');
+      if (posEl) posEl.textContent = `Token ${idx + 1} / ${tokens.length}`;
+
+      // Update button states
+      document.getElementById('cinema-btn-first').disabled = (idx === 0);
+      document.getElementById('cinema-btn-prev').disabled  = (idx === 0);
+      document.getElementById('cinema-btn-next').disabled  = (idx === tokens.length - 1);
+      document.getElementById('cinema-btn-last').disabled  = (idx === tokens.length - 1);
+    }
+
+    /**
+     * Render the interactive token-by-token Context Attention Heatmap
+     * showing exactly how much attention was paid to each prompt token
+     * during the generation of the selected token.
+     */
+    function renderAttentionHeatmap(tok, idx) {
+      const panel = document.getElementById('attention-heatmap-panel');
+      const container = document.getElementById('attention-tokens-container');
+      const label = document.getElementById('attention-stats-label');
+      if (!panel || !container || !tok) return;
+
+      const promptTokens = cinemaState.prompt_tokens || [];
+      const weights = tok.attention_weights || [];
+
+      if (!promptTokens.length || !weights.length) {
+        panel.style.display = 'none';
+        return;
+      }
+
+      panel.style.display = 'block';
+      const dispTok = (tok.text || '').replace(/\n/g, '↵').replace(/\t/g, '→').trim() || '·';
+      if (label) {
+        label.textContent = `Token #${idx + 1} ("${dispTok.length > 10 ? dispTok.slice(0,10)+'…' : dispTok}") Attention Heatmap`;
+      }
+
+      container.innerHTML = '';
+
+      // Find max weight for normalized color scaling
+      const maxWeight = Math.max(...weights) || 1e-6;
+
+      promptTokens.forEach((tokenText, tIdx) => {
+        const weight = weights[tIdx] || 0;
+        // Normalize weight to [0, 1] relative to the maximum weight in this step
+        const relWeight = weight / maxWeight;
+
+        // Render as a span with background color intensity
+        const span = document.createElement('span');
+        span.className = 'attention-token-span';
+        
+        // Indigo / purple alpha scale: rgba(99, 102, 241, relWeight)
+        span.style.background = `rgba(99, 102, 241, ${0.05 + relWeight * 0.75})`;
+        span.style.color = relWeight > 0.45 ? '#ffffff' : '#cbd5e1';
+        
+        if (relWeight > 0.6) {
+          span.style.border = '1px solid rgba(165, 180, 252, 0.4)';
+          span.style.fontWeight = 'bold';
+        } else {
+          span.style.border = '1px solid rgba(255, 255, 255, 0.03)';
+        }
+        
+        // Format whitespace characters cleanly
+        const cleanDisp = tokenText.replace(/Ġ/g, ' ').replace(/Ċ/g, '\n').replace(/âĢ/g, "'");
+        span.textContent = cleanDisp;
+        span.title = `Token: "${cleanDisp.replace(/\n/g, '↵')}"\nWeight: ${(weight * 100).toFixed(3)}%\nRelative: ${(relWeight * 100).toFixed(1)}% of max`;
+        
+        container.appendChild(span);
+      });
+    }
+
+    /** Render the top-5 alternatives panel for a given token */
+    function cinemaRenderAlternatives(tok, idx) {
+      const panel = document.getElementById('cinema-alts-panel');
+      const label = document.getElementById('cinema-alts-label');
+      const grid  = document.getElementById('cinema-alts-grid');
+      if (!panel || !grid || !tok) return;
+
+      panel.style.display = 'block';
+
+      const displayText = tok.text ? `"${tok.text.replace(/\n/g, '↵')}"` : '(space)';
+      if (label) label.textContent = `Top-5 Alternatives at Token #${idx + 1} — chosen: ${displayText} (${(tok.prob * 100).toFixed(1)}% confidence)`;
+
+      const alts = tok.top_alternatives || [];
+      if (!alts.length) { grid.innerHTML = '<span style="color:#6b7280;font-size:0.72rem;">No alternative data available.</span>'; return; }
+
+      grid.innerHTML = '';
+      const maxProb = alts[0].prob || 1;
+
+      alts.forEach(alt => {
+        const row = document.createElement('div');
+        row.className = `cinema-alt-row ${alt.is_chosen ? 'chosen' : ''}`;
+
+        const tokenEl = document.createElement('span');
+        tokenEl.className = 'cinema-alt-token';
+        const displayAlt = (alt.token || ' ').replace(/\n/g, '↵').replace(/\t/g, '→');
+        tokenEl.textContent = displayAlt;
+        tokenEl.style.color = alt.is_chosen ? '#a5b4fc' : '#6b7280';
+
+        const barWrap = document.createElement('div');
+        barWrap.className = 'cinema-alt-bar-wrap';
+
+        const bar = document.createElement('div');
+        bar.className = 'cinema-alt-bar';
+        bar.style.width = `${Math.round((alt.prob / maxProb) * 100)}%`;
+
+        barWrap.appendChild(bar);
+
+        const probEl = document.createElement('span');
+        probEl.className = 'cinema-alt-prob';
+        probEl.textContent = `${(alt.prob * 100).toFixed(1)}%`;
+        if (alt.is_chosen) probEl.style.color = '#a5b4fc';
+
+        row.appendChild(tokenEl);
+        row.appendChild(barWrap);
+        row.appendChild(probEl);
+        grid.appendChild(row);
+      });
+
+      // ---- Render Pre-Selection Operations Pipeline ----
+      renderPipelineViz(tok, idx);
+    }
+
+    /**
+     * Render the animated pre-selection pipeline showing all operations
+     * performed by the model before choosing the current token:
+     *   Input Context → Forward Pass → Temperature Scaling → Softmax → Selection
+     */
+    function renderPipelineViz(tok, idx) {
+      const pipePanel  = document.getElementById('pipeline-panel');
+      const pipeStages = document.getElementById('pipeline-stages');
+      const chosenLbl  = document.getElementById('pipeline-chosen-label');
+      if (!pipePanel || !pipeStages) return;
+
+      pipePanel.style.display = 'block';
+      pipeStages.innerHTML = '';
+
+      const alts       = tok.top_alternatives || [];
+      const chosenTok  = tok.text || '?';
+      const chosenProb = tok.prob || 0;
+      const tempValue  = parseFloat(document.getElementById('temp-slider')?.value || 0.1);
+      const contextLen = idx + 1;   // tokens generated so far (1-indexed position)
+      const vocabSize  = 151936;    // Qwen2.5 vocab size
+      const maxProb    = alts.length > 0 ? (alts[0].prob || 1) : 1;
+
+      // Update the chosen token label in the header
+      const dispTok = chosenTok.replace(/\n/g, '↵').replace(/\t/g, '→').trim() || '·';
+      if (chosenLbl) chosenLbl.textContent = `→ "${dispTok.length > 10 ? dispTok.slice(0,10)+'…' : dispTok}" chosen (${(chosenProb*100).toFixed(1)}%)`;
+
+      // Convenience: make a stage div
+      function makeStage(cls, icon, name, detail, valueText, extra) {
+        const stage = document.createElement('div');
+        stage.className = `pipe-stage ${cls}`;
+
+        const box = document.createElement('div');
+        box.className = 'pipe-stage-box';
+
+        if (extra === 'crown') {
+          const crown = document.createElement('div');
+          crown.className = 'pipe-crown';
+          crown.textContent = '👑';
+          crown.style.animationDelay = '0.45s';
+          box.appendChild(crown);
+        }
+
+        const iconEl = document.createElement('div');
+        iconEl.className = 'pipe-stage-icon';
+        iconEl.textContent = icon;
+        box.appendChild(iconEl);
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'pipe-stage-name';
+        nameEl.textContent = name;
+        box.appendChild(nameEl);
+
+        if (detail) {
+          const detEl = document.createElement('div');
+          detEl.className = 'pipe-stage-detail';
+          detEl.textContent = detail;
+          box.appendChild(detEl);
+        }
+
+        if (valueText) {
+          const valEl = document.createElement('div');
+          valEl.className = 'pipe-stage-value';
+          valEl.textContent = valueText;
+          box.appendChild(valEl);
+        }
+
+        stage.appendChild(box);
+        return stage;
+      }
+
+      function makeArrow() {
+        const a = document.createElement('div');
+        a.className = 'pipe-arrow';
+        const line = document.createElement('div');
+        line.className = 'pipe-arrow-line';
+        a.appendChild(line);
+        return a;
+      }
+
+      // ----------------------------------------------------------------
+      // STAGE 1: Input Context
+      // ----------------------------------------------------------------
+      const s1 = makeStage(
+        'stage-input', '📥', 'Input Context',
+        `${contextLen} token${contextLen !== 1 ? 's' : ''} in context`,
+        `seq_len = ${contextLen}`
+      );
+      s1.style.animationDelay = '0ms';
+      pipeStages.appendChild(s1);
+      pipeStages.appendChild(makeArrow());
+
+      // ----------------------------------------------------------------
+      // STAGE 2: Transformer Forward Pass
+      // ----------------------------------------------------------------
+      const s2 = makeStage(
+        'stage-fwd', '🧠', 'Forward Pass',
+        'Transformer layers compute hidden states',
+        `logits [${vocabSize.toLocaleString()}]`
+      );
+      s2.style.animationDelay = '80ms';
+      pipeStages.appendChild(s2);
+      pipeStages.appendChild(makeArrow());
+
+      // ----------------------------------------------------------------
+      // STAGE 3: Temperature Scaling
+      // ----------------------------------------------------------------
+      const tempLabel = tempValue <= 0.01
+        ? 'Greedy (T=0)'
+        : `T = ${tempValue.toFixed(2)}`;
+      const tempEffect = tempValue < 0.5
+        ? 'sharper — more deterministic'
+        : tempValue > 1.0
+        ? 'flatter — more random'
+        : 'balanced distribution';
+      const s3 = makeStage(
+        'stage-temp', '🌡️', 'Temp Scaling',
+        `logits ÷ T  →  ${tempEffect}`,
+        tempLabel
+      );
+      s3.style.animationDelay = '160ms';
+      pipeStages.appendChild(s3);
+      pipeStages.appendChild(makeArrow());
+
+      // ----------------------------------------------------------------
+      // STAGE 4: Softmax → Probability Distribution (with mini bar chart)
+      // ----------------------------------------------------------------
+      const s4 = document.createElement('div');
+      s4.className = 'pipe-stage stage-softmax';
+      s4.style.animationDelay = '240ms';
+      s4.style.minWidth = '130px';
+      s4.style.maxWidth = '155px';
+
+      const s4box = document.createElement('div');
+      s4box.className = 'pipe-stage-box';
+
+      const s4icon = document.createElement('div');
+      s4icon.className = 'pipe-stage-icon';
+      s4icon.textContent = '📊';
+      s4box.appendChild(s4icon);
+
+      const s4name = document.createElement('div');
+      s4name.className = 'pipe-stage-name';
+      s4name.textContent = 'Softmax';
+      s4box.appendChild(s4name);
+
+      const s4detail = document.createElement('div');
+      s4detail.className = 'pipe-stage-detail';
+      s4detail.textContent = 'exp(x) / Σ exp(x)';
+      s4box.appendChild(s4detail);
+
+      // Mini bar chart of top alternatives
+      if (alts.length > 0) {
+        const barsDiv = document.createElement('div');
+        barsDiv.className = 'pipe-mini-bars';
+
+        alts.slice(0, 5).forEach((alt, i) => {
+          const rowDiv = document.createElement('div');
+          rowDiv.className = `pipe-mini-bar-row ${alt.is_chosen ? 'chosen' : ''}`;
+
+          const lbl = document.createElement('div');
+          lbl.className = 'pipe-mini-bar-label';
+          const altDisp = (alt.token || ' ').replace(/\n/g, '↵').replace(/\t/g, '→').trim() || '·';
+          lbl.textContent = altDisp.length > 5 ? altDisp.slice(0,4)+'…' : altDisp;
+          lbl.title = alt.token;
+
+          const track = document.createElement('div');
+          track.className = 'pipe-mini-bar-track';
+          const fill = document.createElement('div');
+          fill.className = 'pipe-mini-bar-fill';
+          fill.style.width  = `${Math.round((alt.prob / maxProb) * 100)}%`;
+          fill.style.animationDelay = `${300 + i * 50}ms`;
+          track.appendChild(fill);
+
+          const pct = document.createElement('div');
+          pct.className = 'pipe-mini-bar-pct';
+          pct.textContent = `${(alt.prob * 100).toFixed(0)}%`;
+
+          rowDiv.appendChild(lbl);
+          rowDiv.appendChild(track);
+          rowDiv.appendChild(pct);
+          barsDiv.appendChild(rowDiv);
+        });
+
+        s4box.appendChild(barsDiv);
+      }
+
+      s4.appendChild(s4box);
+      pipeStages.appendChild(s4);
+      pipeStages.appendChild(makeArrow());
+
+      // ----------------------------------------------------------------
+      // STAGE 5: Sampling / Selection
+      // ----------------------------------------------------------------
+      const samplingMode = tempValue <= 0.01 ? 'Greedy argmax' : 'Multinomial sample';
+      const confLabel    = chosenProb >= 0.8 ? '🟢 High' : chosenProb >= 0.4 ? '🟡 Mid' : '🔴 Low';
+      const chosenDisp   = dispTok.length > 8 ? dispTok.slice(0,7)+'…' : dispTok;
+      const s5 = makeStage(
+        'stage-sample', '✅', 'Selection',
+        `${samplingMode} — ${confLabel} confidence`,
+        `"${chosenDisp}" · ${(chosenProb*100).toFixed(1)}%`,
+        'crown'
+      );
+      s5.style.animationDelay = '340ms';
+      pipeStages.appendChild(s5);
+    }
+
+    /** Toggle auto-play */
+    function cinemaTogglePlay() {
+      const btn = document.getElementById('cinema-btn-play');
+      if (cinemaState.playing) {
+        // Pause
+        clearInterval(cinemaState.playTimer);
+        cinemaState.playTimer = null;
+        cinemaState.playing = false;
+        if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
+      } else {
+        // Play
+        cinemaState.playing = true;
+        if (btn) { btn.textContent = '⏸'; btn.classList.add('active'); }
+
+        // If at end, restart
+        if (cinemaState.index >= cinemaState.tokens.length - 1) {
+          cinemaSeek(0);
+        }
+
+        cinemaState.playTimer = setInterval(() => {
+          if (cinemaState.index >= cinemaState.tokens.length - 1) {
+            cinemaTogglePlay(); // Stop at end
+            return;
+          }
+          cinemaSeek(cinemaState.index + 1);
+        }, cinemaState.speed);
+      }
+    }
+
+    /** Replay the full cinema animation */
+    function cinemaReplay() {
+      if (cinemaState.playing) cinemaTogglePlay(); // Stop if playing
+      // Re-render cells with fresh pop animation
+      cinemaFinalize(cinemaState.tokens, cinemaState.sourceSentence);
+    }
+
+
+    function renderTokenAtlas(tokensData) {
+      if (!tokensData || tokensData.length === 0) return;
+
+      document.getElementById('atlas-placeholder').style.display = 'none';
+      const chartDiv = document.getElementById('plotly-chart');
+      chartDiv.style.display = 'block';
+
+      // Group tokens by category
+      const categories = [...new Set(tokensData.map(item => item.category))];
+      const colorMap = {
+        "System Instructions": "#a855f7",       // Purple
+        "User Question": "#f43f5e",             // Pink-red
+        "Context (Highly Relevant)": "#06b6d4", // Cyan
+        "Context (Other)": "rgba(255, 255, 255, 0.2)" // Faded white
+      };
+
+      const traces = categories.map(cat => {
+        const filtered = tokensData.filter(item => item.category === cat);
+        return {
+          x: filtered.map(item => item.x),
+          y: filtered.map(item => item.y),
+          text: filtered.map(item => `Token: "${item.token}"<br>Category: ${item.category}`),
+          mode: 'markers+text',
+          name: cat,
+          hoverinfo: 'text',
+          textposition: 'top center',
+          textfont: {
+            size: 9,
+            color: '#9ca3af'
+          },
+          marker: {
+            size: cat.includes("Question") ? 10 : (cat.includes("Highly") ? 8 : 6),
+            color: colorMap[cat] || "#6366f1",
+            line: {
+              width: 1,
+              color: '#0b0f19'
+            }
+          }
+        };
+      });
+
+      const layout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        showlegend: true,
+        legend: {
+          font: { color: '#9ca3af', size: 10 },
+          orientation: 'h',
+          y: -0.15
+        },
+        margin: { l: 40, r: 40, b: 60, t: 30 },
+        xaxis: {
+          showgrid: true,
+          gridcolor: 'rgba(255,255,255,0.05)',
+          zeroline: false,
+          tickfont: { color: '#6b7280', size: 9 }
+        },
+        yaxis: {
+          showgrid: true,
+          gridcolor: 'rgba(255,255,255,0.05)',
+          zeroline: false,
+          tickfont: { color: '#6b7280', size: 9 }
+        },
+        hoverlabel: {
+          bgcolor: '#111827',
+          bordercolor: 'rgba(255,255,255,0.1)',
+          font: { color: '#f3f4f6', size: 11 }
+        }
+      };
+
+      Plotly.newPlot('plotly-chart', traces, layout, { responsive: true, displayModeBar: false });
+    }
+
+    // Render Context Relevance Heatmap
+    function renderRelevanceHeatmap(heatmapData) {
+      if (!heatmapData || heatmapData.length === 0) return;
+
+      originalHeatmapData = heatmapData;
+
+      document.getElementById('heatmap-placeholder').style.display = 'none';
+      const containerDiv = document.getElementById('heatmap-container');
+      containerDiv.style.display = 'flex';
+
+      // Reset search field & indices
+      searchInput.value = '';
+      currentMatchIndex = -1;
+      currentMatches = [];
+      
+      // Perform initial search render (renders normal heatmap when input is empty)
+      performSearch();
+    }
+
+    // Render Explainer Pill List & Bar Chart
+    function renderExplainerList(heatmapData) {
+      // Pill selector
+      const pillsDiv = document.getElementById('explainer-sentence-pills');
+      if (!pillsDiv) return;
+      pillsDiv.innerHTML = '';
+
+      // Find max relevance
+      let maxRel = 0;
+      heatmapData.forEach(item => { if (item.relevance > maxRel) maxRel = item.relevance; });
+
+      heatmapData.forEach((item, index) => {
+        const pill = document.createElement('button');
+        const isSource = (item.relevance === maxRel && maxRel > 0);
+        const isSelected = (index === selectedExplainerIndex);
+
+        pill.style.cssText = `
+          border-radius: 9999px;
+          padding: 0.35rem 0.85rem;
+          font-size: 0.78rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 1.5px solid ${isSource ? 'rgba(59,130,246,0.8)' : (isSelected ? 'rgba(99,102,241,0.7)' : 'var(--panel-border)')};
+          background: ${isSelected ? 'rgba(99,102,241,0.18)' : (isSource ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.03)')};
+          color: ${isSource ? '#60a5fa' : (isSelected ? '#a5b4fc' : 'var(--text-muted)')};
+          outline: none;
+          font-family: var(--font-sans);
+          box-shadow: ${isSelected ? '0 0 12px rgba(99,102,241,0.3)' : 'none'};
+        `;
+        pill.textContent = `S${index + 1}: ${(item.relevance * 100).toFixed(0)}%${isSource ? ' 🔵' : ''}`;
+        pill.title = item.text.substring(0, 120) + (item.text.length > 120 ? '...' : '');
+
+        pill.addEventListener('click', () => {
+          selectedExplainerIndex = index;
+          renderExplainerList(heatmapData);
+          updateExplainerDetails(item);
+        });
+
+        pillsDiv.appendChild(pill);
+      });
+
+      // Render bar chart of all relevance scores using Plotly
+      const barLabels = heatmapData.map((item, i) => `S${i+1}`);
+      const barValues = heatmapData.map(item => parseFloat((item.relevance * 100).toFixed(1)));
+      const barColors = heatmapData.map((item, i) => {
+        if (item.relevance === maxRel && maxRel > 0) return '#3b82f6';
+        if (i === selectedExplainerIndex) return '#6366f1';
+        return 'rgba(99,102,241,0.3)';
+      });
+
+      const barTrace = {
+        type: 'bar',
+        x: barLabels,
+        y: barValues,
+        text: barValues.map(v => `${v}%`),
+        textposition: 'outside',
+        marker: { color: barColors, line: { width: 0 } },
+        hovertemplate: '<b>%{x}</b>: %{y:.1f}%<extra></extra>',
+      };
+
+      const barLayout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        margin: { l: 40, r: 20, t: 20, b: 30 },
+        yaxis: {
+          range: [0, 105],
+          showgrid: true,
+          gridcolor: 'rgba(255,255,255,0.05)',
+          tickfont: { color: '#6b7280', size: 10 },
+          ticksuffix: '%',
+          zeroline: false,
+        },
+        xaxis: {
+          tickfont: { color: '#9ca3af', size: 10 },
+          showgrid: false,
+          zeroline: false,
+        },
+        hoverlabel: { bgcolor: '#111827', font: { color: '#f3f4f6', size: 11 } },
+      };
+
+      Plotly.newPlot('relevance-bar-chart', [barTrace], barLayout, { responsive: true, displayModeBar: false });
+    }
+
+    // Update vector math details and draw Plotly Radar chart
+    function updateExplainerDetails(sentenceData) {
+      if (!sentenceData) return;
+
+      // 1. Show & populate selected sentence display
+      const selectedDisplay = document.getElementById('selected-sentence-display');
+      const selectedText = document.getElementById('selected-sentence-full-text');
+      const selectedRel = document.getElementById('selected-sentence-relevance');
+      if (selectedDisplay) selectedDisplay.style.display = 'flex';
+      if (selectedText) selectedText.textContent = sentenceData.text;
+      if (selectedRel) {
+        const pct = (sentenceData.relevance * 100).toFixed(1);
+        const color = sentenceData.relevance > 0.78 ? '#60a5fa' : (sentenceData.relevance > 0.55 ? '#fbbf24' : '#9ca3af');
+        selectedRel.innerHTML = `<span style="color:${color};">Relevance: ${pct}%</span>`;
+      }
+
+      // 2. Show computation breakdown section
+      const breakdown = document.getElementById('computation-breakdown');
+      if (breakdown) breakdown.style.display = 'flex';
+
+      // 3. Populate two-path diagram boxes with actual text
+      const embedQueryBox = document.getElementById('embed-query-box');
+      if (embedQueryBox && latestQueryText) {
+        embedQueryBox.innerHTML = `<span style="color:#6b7280;">question =</span> <strong style="color:#fca5a5;">&quot;${latestQueryText.substring(0, 80)}${latestQueryText.length > 80 ? '...' : ''}&quot;</strong>`;
+      }
+      const llmSystemBox = document.getElementById('llm-system-box');
+      if (llmSystemBox) {
+        const sysDisplay = latestSystemText ? `&quot;${latestSystemText.substring(0, 60)}${latestSystemText.length > 60 ? '...' : ''}&quot;` : '<em style="color:#6b7280;">(none)</em>';
+        llmSystemBox.innerHTML = `<span style="color:#6b7280;">system =</span> <strong style="color:#a5b4fc;">${sysDisplay}</strong>`;
+      }
+      const llmContextBox = document.getElementById('llm-context-box');
+      if (llmContextBox && latestQueryText) {
+        llmContextBox.innerHTML = `<span style="color:#6b7280;">user =</span> <strong style="color:#a5b4fc;">Context: [${sentenceData.text.substring(0,40)}...] + Question: &quot;${latestQueryText.substring(0, 40)}...&quot;</strong>`;
+      }
+
+      // 4. Tokenize & render chips (word-level approximation from text)
+      function makeTokenChips(text, color, containerId, countId) {
+        const container = document.getElementById(containerId);
+        const countEl = document.getElementById(countId);
+        if (!container) return;
+        container.innerHTML = '';
+        // Word-level split as proxy for token display
+        const words = text.match(/[\w']+|[^\w\s]/g) || [];
+        const MAX_SHOW = 40;
+        words.slice(0, MAX_SHOW).forEach(w => {
+          const chip = document.createElement('span');
+          chip.textContent = w;
+          chip.style.cssText = `
+            display: inline-block;
+            background: ${color}1a;
+            border: 1px solid ${color}40;
+            border-radius: 4px;
+            padding: 0.1rem 0.35rem;
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: ${color}cc;
+            white-space: nowrap;
+          `;
+          container.appendChild(chip);
+        });
+        if (words.length > MAX_SHOW) {
+          const more = document.createElement('span');
+          more.textContent = `+${words.length - MAX_SHOW} more`;
+          more.style.cssText = `font-size: 0.66rem; color: #4b5563; font-family: var(--font-mono);`;
+          container.appendChild(more);
+        }
+        if (countEl) countEl.textContent = `≈ ${words.length} tokens · used in both similarity scoring & LLM generation`;
+      }
+      makeTokenChips(latestQueryText || '(query not captured)', '#f43f5e', 'query-token-chips', 'query-token-count');
+      makeTokenChips(sentenceData.text, '#3b82f6', 'sentence-token-chips', 'sentence-token-count');
+
+      // 5. Formula breakdown box
+      const formulaBox = document.getElementById('formula-breakdown');
+      if (formulaBox && latestQueryText) {
+        const sentPreview = sentenceData.text.substring(0, 60) + (sentenceData.text.length > 60 ? '...' : '');
+        const queryPreview = latestQueryText.substring(0, 50) + (latestQueryText.length > 50 ? '...' : '');
+        formulaBox.innerHTML = `
+<span style="color:#94a3b8;">// STEP 1: Tokenize (question only — system NOT included here)</span>
+Q_tokens = tokenizer(<span style="color:#fca5a5;">&quot;${queryPreview}&quot;</span>)
+S_tokens = tokenizer(<span style="color:#93c5fd;">&quot;${sentPreview}&quot;</span>)
+
+<span style="color:#94a3b8;">// STEP 2: Embed each token → 896-D lookup from embedding table</span>
+Q_embs = model.get_input_embeddings()(Q_tokens)  <span style="color:#4b5563;"># shape: [Q_len, 896]</span>
+S_embs = model.get_input_embeddings()(S_tokens)  <span style="color:#4b5563;"># shape: [S_len, 896]</span>
+
+<span style="color:#94a3b8;">// STEP 3: Mean pooling → single vector per text</span>
+Q_vec = Q_embs.mean(dim=0)  <span style="color:#4b5563;"># shape: [896]</span>
+S_vec = S_embs.mean(dim=0)  <span style="color:#4b5563;"># shape: [896]</span>
+
+<span style="color:#94a3b8;">// STEP 4: L2 normalize (cosine prep)</span>
+Q_norm = Q_vec / ||Q_vec||₂
+S_norm = S_vec / ||S_vec||₂
+
+<span style="color:#94a3b8;">// STEP 5: Cosine similarity = dot product of normalized vectors</span>
+cos_sim = dot(Q_norm, S_norm)  <span style="color:#4b5563;"># ∈ [-1, 1]</span>
+
+<span style="color:#94a3b8;">// STEP 6: Map to [0, 1] for display</span>
+relevance = (cos_sim + 1.0) / 2.0  = <strong style="color:#fbbf24;">${(sentenceData.relevance * 100).toFixed(2)}%</strong>
+
+<span style="color:#94a3b8;">// NOTE: LLM uses a DIFFERENT path:</span>
+formatted = chat_template([system, context, question])  <span style="color:#4b5563;"># includes system!</span>
+answer = model.generate(formatted_tokens)  <span style="color:#4b5563;"># full autoregressive generation</span>
+        `;
+      }
+
+      // 6. Fingerprint-based radar chart
+      const qFinger = latestQuestionFingerprint || [];
+      const sFinger = (sentenceData.fingerprint) || new Array(8).fill(0);
+
+      if (qFinger.length > 0) {
+        // Dot product
+        let dotProd = 0;
+        for (let i = 0; i < Math.min(qFinger.length, sFinger.length); i++) {
+          dotProd += qFinger[i] * sFinger[i];
+        }
+
+        // Math box
+        const mathBox = document.getElementById('math-calculation-box');
+        if (mathBox) {
+          const pairProducts = qFinger.map((q, i) => `(${q.toFixed(3)} × ${sFinger[i].toFixed(3)})`).join(' + ');
+          mathBox.innerHTML = `
+<span style="color:#60a5fa; font-weight:700;">Step 1 — Embed:</span>
+  Query vector Q   = [${qFinger.map(n => n.toFixed(3)).join(', ')}]
+  Sentence vector S = [${sFinger.map(n => n.toFixed(3)).join(', ')}]
+
+<span style="color:#60a5fa; font-weight:700;">Step 2 — Dot Product (Q·S):</span>
+  ${pairProducts}
+  = <strong style="color:#34d399;">${dotProd.toFixed(6)}</strong>
+
+<span style="color:#60a5fa; font-weight:700;">Step 3 — Normalize to [0, 1]:</span>
+  Cosine Sim ∈ [-1, 1] → mapped to [0, 1]
+  (cosine_sim + 1) / 2 = <strong style="color:#34d399;">${sentenceData.relevance.toFixed(6)}</strong>
+
+<span style="color:#60a5fa; font-weight:700;">Step 4 — Result:</span>
+  Relevance Score = <strong style="color:#fbbf24; font-size: 1em;">${(sentenceData.relevance * 100).toFixed(2)}%</strong>
+          `;
+        }
+
+        // Radar / Spider chart
+        const labels = ['Block 1', 'Block 2', 'Block 3', 'Block 4', 'Block 5', 'Block 6', 'Block 7', 'Block 8'];
+        const traceQuery = {
+          type: 'scatterpolar',
+          r: [...qFinger, qFinger[0]],
+          theta: [...labels, labels[0]],
+          fill: 'toself',
+          name: 'Query',
+          fillcolor: 'rgba(244,63,94,0.12)',
+          line: { color: '#f43f5e', width: 2.5 }
+        };
+        const traceSentence = {
+          type: 'scatterpolar',
+          r: [...sFinger, sFinger[0]],
+          theta: [...labels, labels[0]],
+          fill: 'toself',
+          name: 'Sentence',
+          fillcolor: 'rgba(59,130,246,0.12)',
+          line: { color: '#3b82f6', width: 2.5 }
+        };
+
+        const radarLayout = {
+          polar: {
+            radialaxis: {
+              visible: true,
+              showline: false,
+              gridcolor: 'rgba(255,255,255,0.07)',
+              tickfont: { color: '#4b5563', size: 8 }
+            },
+            angularaxis: {
+              gridcolor: 'rgba(255,255,255,0.07)',
+              tickfont: { color: '#9ca3af', size: 10 }
+            },
+            bgcolor: 'rgba(0,0,0,0)'
+          },
+          paper_bgcolor: 'rgba(0,0,0,0)',
+          showlegend: false,
+          margin: { l: 50, r: 50, t: 30, b: 30 }
+        };
+
+        Plotly.newPlot('explainer-chart', [traceQuery, traceSentence], radarLayout, { responsive: true, displayModeBar: false });
+      }
+    }
+
+    // ============================================================
+    // INFERENCE HISTORY PERSISTENT STORAGE MANAGEMENT
+    // ============================================================
+    let generationHistory = [];
+    const MAX_HISTORY_ITEMS = 10;
+
+    function toggleHistory() {
+      const list = document.getElementById('history-content-list');
+      const arrow = document.getElementById('history-toggle-arrow');
+      if (!list || !arrow) return;
+      
+      if (list.style.display === 'none') {
+        list.style.display = 'flex';
+        arrow.classList.add('open');
+      } else {
+        list.style.display = 'none';
+        arrow.classList.remove('open');
+      }
+    }
+
+    function loadHistory() {
+      try {
+        const stored = localStorage.getItem('qwen_generation_history');
+        if (stored) {
+          generationHistory = JSON.parse(stored);
+        }
+      } catch (err) {
+        console.error('Failed to load history:', err);
+        generationHistory = [];
+      }
+      renderHistoryList();
+    }
+
+    function saveHistory() {
+      try {
+        localStorage.setItem('qwen_generation_history', JSON.stringify(generationHistory));
+      } catch (err) {
+        console.error('Failed to save history:', err);
+      }
+      renderHistoryList();
+    }
+
+    function saveToHistory(inputs, response) {
+      const newItem = {
+        id: 'hist_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        date: new Date().toLocaleDateString(),
+        inputs: inputs,
+        response: response
+      };
+      generationHistory.unshift(newItem);
+      if (generationHistory.length > MAX_HISTORY_ITEMS) {
+        generationHistory = generationHistory.slice(0, MAX_HISTORY_ITEMS);
+      }
+      saveHistory();
+    }
+
+    function deleteHistoryItem(id, event) {
+      if (event) {
+        event.stopPropagation();
+      }
+      generationHistory = generationHistory.filter(item => item.id !== id);
+      saveHistory();
+    }
+
+    function clearAllHistory() {
+      if (confirm('Are you sure you want to clear all generation history?')) {
+        generationHistory = [];
+        saveHistory();
+      }
+    }
+
+    function renderHistoryList() {
+      const listContainer = document.getElementById('history-content-list');
+      const countBadge = document.getElementById('history-count');
+      if (!listContainer || !countBadge) return;
+
+      countBadge.textContent = generationHistory.length;
+
+      if (generationHistory.length === 0) {
+        listContainer.innerHTML = `<div class="history-empty">No history yet. Run inference to save a task!</div>`;
+        return;
+      }
+
+      let html = '';
+      generationHistory.forEach((item) => {
+        const qText = item.inputs.question;
+        const tCount = item.response.completion_tokens || 0;
+        const speed = item.response.tokens_per_second ? item.response.tokens_per_second.toFixed(1) : '0';
+        
+        html += `
+          <div class="history-item" onclick="restoreHistoryItem('${item.id}')" id="hist-item-${item.id}">
+            <div class="history-item-content">
+              <div class="history-item-question" title="${qText.replace(/"/g, '&quot;')}">${qText}</div>
+              <div class="history-item-meta">
+                <span>🕒 ${item.timestamp}</span>
+                <span>• 🪙 ${tCount} tok</span>
+                <span>• ⚡ ${speed} t/s</span>
+              </div>
+            </div>
+            <button class="history-item-delete" onclick="deleteHistoryItem('${item.id}', event)" title="Delete history item">✕</button>
+          </div>
+        `;
+      });
+
+      html += `<button class="history-clear-btn" onclick="clearAllHistory()">Clear All History</button>`;
+      listContainer.innerHTML = html;
+    }
+
+    function restoreHistoryItem(id) {
+      const item = generationHistory.find(x => x.id === id);
+      if (!item) return;
+
+      document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+      const activeEl = document.getElementById(`hist-item-${id}`);
+      if (activeEl) activeEl.classList.add('active');
+
+      systemInput.value = item.inputs.system_instruction;
+      contextInput.value = item.inputs.context_text;
+      questionInput.value = item.inputs.question;
+      
+      tempSlider.value = item.inputs.temperature;
+      tempVal.textContent = parseFloat(item.inputs.temperature).toFixed(2);
+      tokensSlider.value = item.inputs.max_new_tokens;
+      tokensVal.textContent = item.inputs.max_new_tokens;
+
+      performTokenCount();
+
+      placeholder.style.display = 'none';
+      outputText.style.display = 'block';
+      outputText.innerHTML = item.response.outputTextHtml || '';
+      
+      valTime.textContent = item.response.generation_time ? `${item.response.generation_time.toFixed(2)}s` : '-';
+      valTokens.textContent = item.response.completion_tokens || '-';
+      valSpeed.textContent = item.response.tokens_per_second ? `${item.response.tokens_per_second.toFixed(1)} t/s` : '-';
+
+      const tokenStreamLive = document.getElementById('token-stream-live');
+      if (tokenStreamLive) tokenStreamLive.style.display = 'none';
+      
+      const tokenGenPlaceholder = document.getElementById('token-gen-placeholder');
+      if (tokenGenPlaceholder) tokenGenPlaceholder.style.display = 'none';
+
+      clearTrace();
+      traceStatus.textContent = 'RESTORED';
+      traceStatus.style.color = 'var(--accent-emerald)';
+      logTrace(`Restored generation task from local history (${item.date} ${item.timestamp})`, 'success');
+      logTrace(`Hardware Target: Saved from ${item.response.device || 'MPS'}`, 'hardware');
+      logTrace(`Prompt Tokens: ${item.response.prompt_tokens} | Completion Tokens: ${item.response.completion_tokens}`, 'info');
+
+      if (item.response.streamedTokens) {
+        renderTokenTimeline(item.response.streamedTokens);
+      }
+      
+      if (item.response.visualization) {
+        const vis = item.response.visualization;
+        if (vis.tokens_atlas) {
+          renderTokenAtlas(vis.tokens_atlas);
+        }
+        if (vis.relevance_heatmap) {
+          originalHeatmapData = vis.relevance_heatmap;
+          renderRelevanceHeatmap(vis.relevance_heatmap);
+          renderExplainerList(vis.relevance_heatmap);
+          updateExplainerDetails(vis.relevance_heatmap[0]);
+        }
+        if (vis.question_fingerprint) {
+          latestQuestionFingerprint = vis.question_fingerprint;
+        }
+        
+        const bestSent = item.response.bestSent || '';
+        if (bestSent) {
+          const sc = document.getElementById('source-sentence-card');
+          const st = document.getElementById('source-sentence-text');
+          if (sc && st) {
+            st.textContent = bestSent;
+            sc.style.display = 'flex';
+          }
+        }
+        
+        if (vis.token_data && vis.token_data.length > 0) {
+          cinemaFinalize(vis.token_data, bestSent, vis.prompt_tokens);
+          renderTokenFlowViz(vis.token_data);
+        } else if (item.response.streamedTokens) {
+          cinemaFinalize(item.response.streamedTokens, bestSent, null);
+          renderTokenFlowViz(item.response.streamedTokens);
+        }
+      }
+      
+      const badge = document.getElementById('heatmap-badge');
+      if (badge) badge.style.display = 'inline-block';
+      
+      const explainerContainer = document.getElementById('explainer-container');
+      if (explainerContainer) explainerContainer.style.display = 'flex';
+      const explainerPlaceholder = document.getElementById('explainer-placeholder');
+      if (explainerPlaceholder) explainerPlaceholder.style.display = 'none';
+
+      switchTab('answer');
+    }
+
+    // Run initial counts and load history on load
+    performTokenCount();
+    loadHistory();
+  </script>
+</body>
+</html>

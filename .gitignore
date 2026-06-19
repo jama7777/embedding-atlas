@@ -30,3 +30,6 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+
+
+all_documents/

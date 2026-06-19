@@ -1,0 +1,98 @@
+From Wikipedia, the free encyclopedia
+
+Gravitational wave observatory site
+
+This article is about LIGO observatories. For other uses, see LIGO Scientific Collaboration and Ligo (disambiguation).
+
+The Laser Interferometer Gravitational-Wave Observatory (LIGO) is a large-scale physics experiment and observatory designed to detect cosmic gravitational waves. Prior to LIGO, all data about the universe had come in the form of light and other forms of electromagnetic radiation, from limited direct exploration on relatively nearby Solar System objects such as the Moon, Mars, Venus, Jupiter and their moons, asteroids etc., and from high energy cosmic particles. Initially, two large observatories were built in the United States with the aim of detecting gravitational waves by laser interferometry. Two additional, smaller gravitational wave observatories are now operational in Japan (KAGRA) and Italy (Virgo). The two LIGO observatories use mirrors spaced 4 kilometres (13,000 ft) apart to measure changes in length—over an effective span of 1,120 kilometres (700 mi)—of less than one ten-thousandth the charge diameter of a proton.
+
+The initial LIGO observatories were funded by the United States National Science Foundation (NSF). They were conceived, built, and are operated by Caltech and MIT. They collected data from 2002 to 2010, but no gravitational waves were detected during that period.
+
+The Advanced LIGO Project to enhance the original LIGO detectors began in 2008, and continues to be supported by the NSF, with important contributions from the United Kingdom's Science and Technology Facilities Council, the Max Planck Society of Germany, and the Australian Research Council. The improved detectors began operation in 2015. The detection of gravitational waves was reported in 2016 by the LIGO Scientific Collaboration (LSC) and the Virgo Collaboration with the international participation of scientists from several universities and research institutions. Scientists involved in the project and the analysis of the data for gravitational-wave astronomy are organized by the LSC, which includes more than 1,000 scientists worldwide, as well as 440,000 active Einstein@Home users as of December 2016.
+
+LIGO is the largest and most ambitious project ever funded by the NSF. In 2017, the Nobel Prize in Physics was awarded to Rainer Weiss, Kip Thorne and Barry Barish "for decisive contributions to the LIGO detector and the observation of gravitational waves".
+
+Observations are made in "runs". As of February 2026, LIGO has made four runs (with the third run divided into two "subruns" and the fourth divided into three subruns), and made 391 detections of gravitational waves. Maintenance and upgrades of the detectors are made between runs. The first run, O1, which ran from September 12, 2015, to January 19, 2016, made the first three detections, all black hole mergers. The second run, O2, which ran from November 30, 2016, to August 25, 2017, made eight detections: seven black hole mergers and the first neutron star merger. The third run, O3, began on April 1, 2019; it was divided into O3a, from April 1 to September 30, 2019, and O3b, from November 1, 2019 until it was suspended on March 27, 2020, due to COVID-19. The O3 run included the first detection of the merger of a neutron star with a black hole. The fourth run, O4, began on May 24, 2023, and ended on November 18, 2025. 250 detection "candidates" were observed during O4, with 77 confirmed observations and the remaining 173 pending final analysis as of February 2026.
+
+Subsequent gravitational wave observatories Virgo in Italy, and KAGRA in Japan, which both use interferometer arms 3 kilometres (9,800 ft) long, coordinated with LIGO to continue observations after the COVID-caused stop, and LIGO's O4 observing run started on May 24, 2023. LIGO projects a sensitivity goal of 160–190 Mpc for binary neutron star mergers (sensitivities: Virgo 80–115 Mpc, KAGRA greater than 1 Mpc).
+
+History
+
+Background
+
+LIGO Hanford Observatory
+
+LIGO  Louisiana Observatory
+
+The LIGO concept built upon early work by many scientists to test a component of Albert Einstein's theory of general relativity, the existence of gravitational waves. Starting in the 1960s, American scientists including Joseph Weber, as well as Soviet scientists Mikhail Gertsenshtein and Vladislav Pustovoit, conceived of basic ideas and prototypes of laser interferometry, and in 1967 Rainer Weiss of MIT published an analysis of interferometer use and initiated the construction of a prototype with military funding, but it was terminated before it could become operational. Starting in 1968, Kip Thorne initiated theoretical efforts on gravitational waves and their sources at Caltech, and was convinced that gravitational wave detection would eventually succeed.
+
+Prototype interferometric gravitational wave detectors (interferometers) were built in the late 1960s by Robert L. Forward and colleagues at Hughes Research Laboratories (with mirrors mounted on a vibration isolated plate rather than free swinging), and in the 1970s (with free swinging mirrors between which light bounced many times) by Weiss at MIT, and then by Heinz Billing and colleagues in Garching Germany, and then by Ronald Drever, James Hough and colleagues in Glasgow, Scotland.
+
+In 1980, the NSF funded the study of a large interferometer led by MIT (Paul Linsay, Peter Saulson, Rainer Weiss), and the following year, Caltech constructed a 40-meter prototype (Ronald Drever and Stan Whitcomb). The MIT study established the feasibility of interferometers at a 1 km scale with adequate sensitivity.
+
+Under pressure from the NSF, MIT and Caltech were asked to join forces to lead a LIGO project based on the MIT study and on experimental work at Caltech, MIT, Glasgow, and Garching. Drever, Thorne, and Weiss formed a LIGO steering committee, though they were turned down for funding in 1984 and 1985. By 1986, they were asked to disband the steering committee and a single director, Rochus E. Vogt (Caltech), was appointed. In 1988, a research and development proposal achieved funding.
+
+From 1989 through 1994, LIGO failed to progress technically and organizationally. Only political efforts continued to acquire funding. Ongoing funding was routinely rejected until 1991, when the U.S. Congress agreed to fund LIGO for the first year for $23 million. However, requirements for receiving the funding were not met or approved, and the NSF questioned the technological and organizational basis of the project. By 1992, LIGO was restructured with Drever no longer a direct participant. Ongoing project management issues and technical concerns were revealed in NSF reviews of the project, resulting in the withholding of funds until they formally froze spending in 1993.
+
+In 1994, after consultation between relevant NSF personnel, LIGO's scientific leaders, and the presidents of MIT and Caltech, Vogt stepped down and Barry Barish (Caltech) was appointed laboratory director, and the NSF made clear that LIGO had one last chance for support. Barish's team created a new study, budget, and project plan with a budget exceeding the previous proposals by 40%. Barish proposed to the NSF and National Science Board to build LIGO as an evolutionary detector, where detection of gravitational waves with initial LIGO would be possible, and with advanced LIGO would be probable. This new proposal received NSF funding, Barish was appointed principal investigator, and the increase was approved. In 1994, with a budget of US$395 million, LIGO stood as the largest overall funded NSF project in history. The project broke ground in Hanford, Washington in late 1994 and in Livingston, Louisiana in 1995. As construction neared completion in 1997, under Barish's leadership two organizational institutions were formed, LIGO Laboratory and LIGO Scientific Collaboration (LSC). The LIGO laboratory consists of the facilities supported by the NSF under LIGO Operation and Advanced R&D; this includes administration of the LIGO detector and test facilities. The LIGO Scientific Collaboration is a forum for organizing technical and scientific research in LIGO. It is a separate organization from LIGO Laboratory with its own oversight. Barish appointed Weiss as the first spokesperson for this scientific collaboration.
+
+Observations begin
+
+Initial LIGO operations between 2002 and 2010 did not detect any gravitational waves. In 2004, under Barish, the funding and groundwork were laid for the next phase of LIGO development (called "Enhanced LIGO"). This was followed by a multi-year shut-down while the detectors were replaced by much improved "Advanced LIGO" versions. Much of the research and development work for the LIGO/aLIGO machines was based on pioneering work for the GEO600 detector at Hannover, Germany. By February 2015, the detectors were brought into engineering mode in both locations.
+
+In mid-September 2015, "the world's largest gravitational-wave facility" completed a five-year US$200-million overhaul, bringing the total cost to $620 million. On September 18, 2015, Advanced LIGO began its first formal science observations at about four times the sensitivity of the initial LIGO interferometers. Its sensitivity was to be further enhanced until it was planned to reach design sensitivity around 2021.
+
+Detections
+
+On February 11, 2016, the LIGO Scientific Collaboration and Virgo Collaboration published a paper about the detection of gravitational waves, from a signal detected at 09.51 GMT on September 14, 2015, of two ~30 solar mass black holes merging about 1.3 billion light-years from Earth.
+
+Executive director David Reitze announced the findings at a media event in Washington D.C., while executive director emeritus Barry Barish presented the first scientific paper of the findings at CERN to the physics community.
+
+On May 2, 2016, members of the LIGO Scientific Collaboration and other contributors were awarded a Special Breakthrough Prize in Fundamental Physics for contributing to the direct detection of gravitational waves.
+
+On June 16, 2016, LIGO announced a second signal was detected from the merging of two black holes with 14.2 and 7.5 times the mass of the Sun. The signal was picked up on December 26, 2015, at 3:38 UTC.
+
+The detection of a third black hole merger, between objects of 31.2 and 19.4 solar masses, occurred on January 4, 2017, and was announced on June 1, 2017. Laura Cadonati was appointed the first deputy spokesperson.
+
+A fourth detection of a black hole merger, between objects of 30.5 and 25.3 solar masses, was observed on August 14, 2017, and was announced on September 27, 2017.
+
+In 2017, Weiss, Barish, and Thorne received the Nobel Prize in Physics "for decisive contributions to the LIGO detector and the observation of gravitational waves". Weiss was awarded one-half of the total prize money, and Barish and Thorne each received a one-quarter prize.
+
+After shutting down for improvements, LIGO resumed operation on March 26, 2019, with Virgo joining the network of gravitational-wave detectors on April 1, 2019. Both ran until March 27, 2020, when the COVID-19 pandemic halted operations. During the COVID shutdown, LIGO underwent a further upgrade in sensitivity, and observing run O4 with the new sensitivity began on May 24, 2023.
+
+Mission
+
+Detector noise curves for Initial and Advanced LIGO as a function of frequency. They lie above the bands for space-borne detectors like the evolved Laser Interferometer Space Antenna (eLISA) and pulsar timing arrays such as the European Pulsar Timing Array (EPTA). The characteristic strains of potential astrophysical sources are also shown. To be detectable the characteristic strain of a signal must be above the noise curve. These frequencies that aLIGO can detect are in the range of human hearing.
+
+LIGO's mission is to directly observe gravitational waves of cosmic origin. These waves were first predicted by Einstein's general theory of relativity in 1916, when the technology necessary for their detection did not yet exist. Their existence was indirectly confirmed in 1974, when observations of the binary pulsar PSR 1913+16 showed an orbital decay which matched Einstein's predictions of energy loss by gravitational radiation. The Nobel Prize in Physics 1993 was awarded to Hulse and Taylor for this discovery.
+
+Direct detection of gravitational waves had long been sought. Their discovery has launched a new branch of astronomy to complement electromagnetic telescopes and neutrino observatories. Joseph Weber pioneered the effort to detect gravitational waves in the 1960s through his work on resonant mass bar detectors. Bar detectors continue to be used at six sites worldwide. By the 1970s, scientists including Rainer Weiss realized the applicability of laser interferometry to gravitational wave measurements. Robert Forward operated an interferometric detector at Hughes in the early 1970s.
+
+In fact as early as the 1960s, and perhaps before that, there were papers published on wave resonance of light and gravitational waves. Work was published in 1971 on methods to exploit this resonance for the detection of high-frequency gravitational waves. In 1962, M. E. Gertsenshtein and V. I. Pustovoit published the very first paper describing the principles for using interferometers for the detection of very long wavelength gravitational waves. The authors argued that by using interferometers the sensitivity can be 107 to 1010 times better than by using electromechanical experiments. Later, in 1965, Braginsky extensively discussed gravitational-wave sources and their possible detection. He pointed out the 1962 paper and mentioned the possibility of detecting gravitational waves if the interferometric technology and measuring techniques improved.
+
+Since the early 1990s, physicists have thought that technology has evolved to the point where detection of gravitational waves—of significant astrophysical interest—is now possible.
+
+In August 2002, LIGO began its search for cosmic gravitational waves. Measurable emissions of gravitational waves are expected from binary systems (collisions and coalescences of neutron stars or black holes), supernova explosions of massive stars (which form neutron stars and black holes), accreting neutron stars, rotations of neutron stars with deformed crusts, and the remnants of gravitational radiation created by the birth of the universe. The observatory may, in theory, also observe more exotic hypothetical phenomena, such as gravitational waves caused by oscillating cosmic strings or colliding domain walls.
+
+Observatories
+
+LIGO operates two gravitational wave observatories in unison: the LIGO Livingston Observatory (30°33′47″N 90°46′28″W﻿ / ﻿30.56306°N 90.77444°W﻿ / 30.56306; -90.77444) in Livingston, Louisiana, and the LIGO Hanford Observatory, on the DOE Hanford Site (46°27′19″N 119°24′28″W﻿ / ﻿46.45528°N 119.40778°W﻿ / 46.45528; -119.40778), located near Richland, Washington. These sites are separated by 3002 km straight line distance through the earth, but 3030 km over the surface. Since gravitational waves are expected to travel at the speed of light, this distance corresponds to a difference in gravitational wave arrival times of up to ten milliseconds. With the difference in arrival times at three different facilities one can trilaterate the source of the wave.
+
+This is done by adding a third instrument like Virgo, located at an even greater distance, in Europe.
+
+Each observatory supports an L-shaped ultra high vacuum system, measuring 4 km on each side. Up to five interferometers can be set up in each vacuum system.
+
+The LIGO Livingston Observatory houses one laser interferometer in the primary configuration. This interferometer was successfully upgraded in 2004 with an active vibration isolation system based on hydraulic actuators providing a factor of 10 isolation in the 0.1–5 Hz band. Seismic vibration in this band is chiefly due to microseismic waves and anthropogenic sources (traffic, logging, etc.).
+
+The LIGO Hanford Observatory houses one interferometer, almost identical to the one at the Livingston Observatory. During the Initial and Enhanced LIGO phases, a half-length interferometer operated in parallel with the main interferometer. For this 2 km interferometer, the Fabry–Pérot arm cavities had the same optical finesse, and, thus, half the storage time as the 4 km interferometers. With half the storage time, the theoretical strain sensitivity was as good as the full length interferometers above 200 Hz but only half as good at low frequencies. During the same era, Hanford retained its original passive seismic isolation system due to limited geologic activity in Southeastern Washington.
+
+Operation
+
+Simplified operation of a gravitational wave observatory Figure 1: A beamsplitter (green line) splits coherent light (from the white box) into two beams which reflect off the mirrors (cyan oblongs); only one outgoing and reflected beam in each arm is shown, and separated for clarity. The reflected beams recombine and an interference pattern is detected (purple circle). Figure 2: A gravitational wave passing over the left arm (yellow) changes its length and thus the interference pattern.
+
+The parameters in this section refer to the Advanced LIGO experiment. The primary interferometer consists of two beam lines of 4 km length which form a power-recycled Michelson interferometer with Gires–Tournois etalon arms. A pre-stabilized 1064 nm Nd:YAG laser emits a beam with a power of 20 W that passes through a power recycling mirror. The mirror fully transmits light incident from the laser and reflects light from the other side increasing the power of the light field between the mirror and the subsequent beam splitter to 700 W. From the beam splitter the light travels along two orthogonal arms. By the use of partially reflecting mirrors, Fabry–Pérot cavities are created in both arms that increase the effective path length of laser light in the arm from 4 km to approximately 1200 km. The power of the light field in the cavity is 100 kW.
+
+When a gravitational wave passes through the interferometer, the spacetime in the local area is altered. Depending on the source of the wave and its polarization, this results in an effective change in length of one or both of the cavities. The effective length change between the beams will cause the light currently in the cavity to become very slightly out of phase (antiphase) with the incoming light. The cavity will therefore periodically get very slightly out of coherence and the beams, which are tuned to destructively interfere at the detector, will have a very slight periodically varying detuning. This results in a measurable signal.
+
+After an equivalent of approximately 280 trips down the 4 km length to the far mirrors and back again, the two separate beams leave the arms and recombine at the beam splitter. The beams returning from two arms are kept out of phase so that when the arms are both in coherence and interference (as when there is no gravitational wave passing through), their light waves subtract, and no light should arrive at the photodiode. When a gravitational wave passes through the interferometer, the distances along the arms of the interferometer are shortened and lengthened, causing the beams to become slightly less out of phase. This results in the beams coming in phase, creating a resonance, hence some light arrives at the photodiode and indicates a signal. Light that does not contain a signal is returned to the interferometer using a power recycling mirror, thus increasing the power of the light in the arms.
+
